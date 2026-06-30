@@ -12,7 +12,7 @@ const BACKEND_BASE_URL = 'https://backend-do-simulador-con-cr-dito-git-main-supo
 function freshState(){
   return {
     sellerName:'', sellerTeam:'', totalTime:300, timeLeft:300, targetCases:10,
-    timerId:null, queueTimer:null, queue:[], activeCase:null, historyOpened:false,
+    timerId:null, queueTimer:null, queue:[], activeCase:null, historyOpened:false, finished:false,
     score:0, solved:0, responses:0, xp:0, sessionHistory:[], startedAt:null, endedAt:null,
     totals:{context:0,diagnosis:0,action:0,safety:0,empathy:0,commercial:0}
   };
@@ -193,9 +193,11 @@ async function saveTrainingOnline(payload){
     const res=await fetch(`${base}/api/salvar`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(!res.ok) throw new Error(await res.text());
     return {ok:true,message:'Treinamento salvo online para o painel da gerente.'};
-  }catch(e){ console.warn(e); return {ok:false,message:'Não foi possível salvar online. Resultado salvo localmente.'}; }
+  }catch(e){ console.warn(e); return {ok:false,message:'Não foi possível salvar online. Resultado salvo localmente. Verifique se o backend está público e se /api/salvar está funcionando.'}; }
 }
 async function finishGame(){
+  if(state.finished) return;
+  state.finished = true;
   clearInterval(state.timerId); clearInterval(state.queueTimer); state.endedAt=new Date().toISOString(); const avg=state.responses?Math.round(state.score/state.responses):0; const profile=loadProfile(); profile.totalXp=(profile.totalXp||0)+state.xp; profile.bestAverage=Math.max(profile.bestAverage||0,avg); saveProfile(profile);
   const avgM={}; Object.keys(state.totals).forEach(k=>avgM[k]=state.responses?Math.round(state.totals[k]/state.responses):0); const rank=careerTitleByAverage(avg); const payload=buildFinalPayload(avg,rank,avgM); saveLocalResult(payload);
   $('finalSolved').textContent=state.solved; $('finalScore').textContent=state.score; $('finalAverage').textContent=`${avg}%`; $('finalXp').textContent=state.xp; $('certificateStatus').textContent=avg>=80&&state.solved>=5?'Aprovado':'Treinamento pendente'; $('finalRank').textContent=rank;
