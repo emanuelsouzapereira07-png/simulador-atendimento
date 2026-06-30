@@ -6,9 +6,7 @@ const localResultsKey = 'central_concredito_resultados_v15';
 const teams = ['Savana','Santo Crédito','Construindo Sonhos','Tropa de Elite','Esquadrão Fênix'];
 
 let state = freshState();
-// Cole aqui a URL do seu backend da Vercel quando ele estiver pronto.
-// Exemplo: const BACKEND_BASE_URL = 'https://seu-projeto.vercel.app';
-const BACKEND_BASE_URL = '';
+const BACKEND_BASE_URL = 'https://backend-do-simulador-con-cr-dito-git-main-suporte3.vercel.app';
 
 
 function freshState(){
