@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Central ConCrédito | Simulador Enterprise</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="brand-header">
+      <button class="brand-logo" id="brandHome" title="Voltar ao menu principal">
+        <div class="brand-mark">C</div>
+        <div>
+          <strong>ConCrédito</strong>
+          <span>CONSIGNADOS</span>
+        </div>
+      </button>
+      <div class="top-actions">
+        <span class="pill" id="iaStatus">IA local ativa</span>
+        <button class="ghost" id="openConfigBtn">Configurações</button>
+      </div>
+    </header>
+
+    <section class="screen active" id="startScreen">
+      <div class="hero-grid">
+        <div class="start-card">
+          <span class="badge">Simulador Inteligente de Atendimento</span>
+          <h1>Central ConCrédito</h1>
+          <p>Treinamento corporativo para o suporte, com casos reais, chat estilo WhatsApp, Supervisor IA, relatórios, níveis, XP e avaliação rigorosa por contexto.</p>
+          <p class="training-note">O objetivo é treinar interpretação, condução, segurança, empatia, comunicação e recuperação comercial.</p>
+
+          <div class="settings">
+            <label>Tempo de plantão
+              <select id="gameTime">
+                <option value="180">3 minutos</option>
+                <option value="300" selected>5 minutos</option>
+                <option value="600">10 minutos</option>
+              </select>
+            </label>
+            <label>Dificuldade
+              <select id="difficulty">
+                <option value="junior">Júnior</option>
+                <option value="pleno" selected>Pleno</option>
+                <option value="senior">Sênior</option>
+                <option value="especialista">Especialista</option>
+              </select>
+            </label>
+            <label>Modo
+              <select id="trainingMode">
+                <option value="plantao" selected>Plantão</option>
+                <option value="competicao">Competição</option>
+                <option value="livre">Treino livre</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="rules">
+            <span>Histórico obrigatório</span>
+            <span>Cliente com perfil real</span>
+            <span>Resposta curta perde pontos</span>
+            <span>Supervisor rigoroso</span>
+          </div>
+
+          <div class="button-row">
+            <button class="primary" id="startBtn">Iniciar plantão</button>
+            <button class="secondary" id="howBtn">Como o Supervisor avalia?</button>
+          </div>
+        </div>
+
+        <aside class="side-card">
+          <h2>Evolução do atendente</h2>
+          <div class="level-card">
+            <strong id="profileLevel">Nível 1</strong>
+            <span id="profileTitle">Atendente em treinamento</span>
+            <div class="xpbar"><i id="xpBar"></i></div>
+            <small id="xpText">0 XP acumulado nesta sessão</small>
+          </div>
+          <div class="mini-stats">
+            <div><span>Melhor média</span><strong id="bestAverage">0%</strong></div>
+            <div><span>Casos salvos</span><strong id="caseCount">0</strong></div>
+            <div><span>Modo IA</span><strong id="iaModeLabel">Local</strong></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="screen" id="howScreen">
+      <div class="panel">
+        <h2>Como o Supervisor IA avalia</h2>
+        <p>O Supervisor avalia a resposta como um líder de suporte: não basta responder certo, é preciso conduzir bem, explicar o próximo passo e evitar risco de comunicação.</p>
+        <div class="criteria-grid">
+          <div><strong>Contexto</strong><span>Uso do histórico e entendimento da etapa.</span></div>
+          <div><strong>Diagnóstico</strong><span>Identificação correta do problema do cliente.</span></div>
+          <div><strong>Condução</strong><span>Motivo, solução e próximo passo.</span></div>
+          <div><strong>Segurança</strong><span>Sem promessas impossíveis, termos internos ou orientações erradas.</span></div>
+          <div><strong>Empatia</strong><span>Tom humano, acolhedor e profissional.</span></div>
+          <div><strong>Recuperação comercial</strong><span>Quando couber, tentar salvar a venda.</span></div>
+        </div>
+        <p class="warning">Respostas como “ok”, “irei verificar”, “vou ver”, “s” ou “pode” recebem nota baixa.</p>
+        <button class="primary" id="backBtn">Voltar</button>
+      </div>
+    </section>
+
+    <section class="screen" id="configScreen">
+      <div class="panel">
+        <h2>Configurações da IA</h2>
+        <p>Use o modo local para testar sem backend. Quando publicar o backend na Vercel, informe a URL abaixo ou fixe no arquivo <code>script.js</code>.</p>
+        <label class="full-label">URL do Backend
+          <input id="backendUrl" placeholder="https://seu-backend.vercel.app/api/analisar" />
+        </label>
+        <div class="switch-row">
+          <label><input type="checkbox" id="useRealIa" /> Usar IA real via backend</label>
+        </div>
+        <div class="button-row">
+          <button class="primary" id="saveConfigBtn">Salvar</button>
+          <button class="secondary" id="configBackBtn">Voltar</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="gameScreen">
+      <header class="hud">
+        <div>
+          <span class="badge small">Plantão ativo</span>
+          <h2>Fila de Atendimento</h2>
+        </div>
+        <div class="hud-metrics">
+          <div><span>Tempo</span><strong id="timer">05:00</strong></div>
+          <div><span>Atendidos</span><strong id="solved">0</strong></div>
+          <div><span>Pontos</span><strong id="score">0</strong></div>
+          <div><span>Fila</span><strong id="queueCount">0</strong></div>
+          <div><span>XP</span><strong id="xpHud">0</strong></div>
+        </div>
+      </header>
+      <div class="timebar"><div id="timeBar"></div></div>
+
+      <section class="workspace">
+        <aside class="queue-panel">
+          <div class="panel-title">
+            <h3>Atendimentos aguardando</h3>
+            <span id="queueStatus">0 na fila</span>
+          </div>
+          <div class="queue-list" id="queueList"></div>
+          <button class="secondary full" id="endShiftBtn">Encerrar plantão</button>
+        </aside>
+
+        <section class="service-panel">
+          <div class="empty-state" id="emptyState">
+            <h3>Selecione um atendimento</h3>
+            <p>Escolha um cliente na fila, leia o histórico e responda como no atendimento real.</p>
+          </div>
+
+          <div class="attendance hidden" id="attendance">
+            <div class="client-header">
+              <div class="avatar" id="avatar">C</div>
+              <div>
+                <strong id="clientName">Cliente</strong>
+                <span id="clientType">Atendimento</span>
+              </div>
+              <div class="client-profile" id="clientProfile">Perfil</div>
+              <button class="secondary small-btn" id="historyBtn">Ver histórico</button>
+            </div>
+
+            <div class="history-box hidden" id="historyBox">
+              <h4>Histórico do cliente</h4>
+              <div id="historyList"></div>
+            </div>
+
+            <div class="chat-area" id="chatArea"></div>
+
+            <label class="reply-label">
+              Sua resposta
+              <textarea id="agentAnswer" placeholder="Digite sua resposta para o cliente..."></textarea>
+            </label>
+
+            <div class="actions">
+              <button class="secondary" id="hintBtn">Dica</button>
+              <button class="secondary" id="modelBtn">Resposta oficial</button>
+              <button class="primary" id="sendBtn">Responder</button>
+            </div>
+
+            <div class="supervisor hidden" id="supervisor">
+              <span class="badge small">Supervisor IA</span>
+              <h3 id="feedbackTitle"></h3>
+              <p id="feedbackText"></p>
+
+              <div class="score-bars">
+                <div><span>Contexto</span><div><i id="barContext"></i></div><strong id="mContext">0%</strong></div>
+                <div><span>Diagnóstico</span><div><i id="barDiagnosis"></i></div><strong id="mDiagnosis">0%</strong></div>
+                <div><span>Condução</span><div><i id="barAction"></i></div><strong id="mAction">0%</strong></div>
+                <div><span>Segurança</span><div><i id="barSafety"></i></div><strong id="mSafety">0%</strong></div>
+                <div><span>Empatia</span><div><i id="barEmpathy"></i></div><strong id="mEmpathy">0%</strong></div>
+                <div><span>Comercial</span><div><i id="barCommercial"></i></div><strong id="mCommercial">0%</strong></div>
+              </div>
+
+              <div class="feedback-grid">
+                <div class="better-answer"><strong>Pontos fortes</strong><ul id="strengthsList"></ul></div>
+                <div class="better-answer"><strong>Pontos a melhorar</strong><ul id="improvementsCaseList"></ul></div>
+              </div>
+              <div class="better-answer"><strong>Comentário técnico</strong><p id="supervisorComment"></p></div>
+              <div class="better-answer"><strong>Exemplo de boa condução</strong><p id="suggestedAnswer"></p></div>
+              <button class="primary full" id="finishCaseBtn">Finalizar caso</button>
+            </div>
+          </div>
+        </section>
+      </section>
+    </section>
+
+    <section class="screen" id="resultScreen">
+      <div class="result-panel">
+        <div class="trophy" id="trophy">★</div>
+        <h1>Fim do plantão</h1>
+        <p id="summary"></p>
+        <div class="final-grid">
+          <div><span>Atendidos</span><strong id="finalSolved">0</strong></div>
+          <div><span>Pontos</span><strong id="finalScore">0</strong></div>
+          <div><span>Média</span><strong id="finalAverage">0%</strong></div>
+          <div><span>Nível</span><strong id="finalRank">Consultor</strong></div>
+          <div><span>XP</span><strong id="finalXp">0</strong></div>
+          <div><span>Certificado</span><strong id="certificateStatus">Em análise</strong></div>
+        </div>
+        <div class="report"><h2>Relatório do Supervisor IA</h2><p id="reportText"></p></div>
+        <div class="report"><h2>O que melhorar</h2><ul id="improvementList"></ul></div>
+        <div class="report"><h2>Histórico do plantão</h2><div id="sessionHistory" class="session-history"></div></div>
+        <div class="button-row center"><button class="primary" id="restartBtn">Jogar novamente</button><button class="secondary" id="exportBtn">Exportar relatório</button></div>
+      </div>
+    </section>
+  </main>
+  <script src="casos.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
