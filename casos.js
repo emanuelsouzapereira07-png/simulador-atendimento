@@ -89,4 +89,52 @@ window.CONCREDITO_CASES = [
     suggested:'Como você deseja realizar a quitação antecipada do seu contrato, vou direcionar o seu atendimento ao setor responsável, que prestará todo o suporte necessário e dará continuidade à sua solicitação. Tudo bem?',
     official:['quitação antecipada','direcionar','setor responsável','suporte necessário','continuidade','tudo bem']
   }
+
+  ,
+  {
+    id:'valor_baixo_esperar', name:'Camila', type:'Objeção: valor baixo / esperar', profile:'Cliente indecisa',
+    message:'O valor ficou muito baixo, acho que vou esperar mais um pouco para ver se melhora.',
+    stage:'negociacao', context:'vendas', difficulty:2,
+    history:[['Hoje - Vendas','Cliente recebeu uma proposta, mas achou o valor liberado abaixo do esperado.'],['Agora - Cliente','Disse que pretende esperar para ver se o valor aumenta.']],
+    hint:'Explique que o valor não costuma aumentar automaticamente. Mostre que a análise pode mudar, inclusive para menor, sem pressionar o cliente.',
+    suggested:'Entendo, Camila. Só para te explicar com clareza: o valor aprovado não costuma aumentar simplesmente por esperar mais um pouco. O que pode mudar é a taxa de juros e a política de análise dos bancos, que pode variar semanalmente. Então a condição que está aprovando hoje pode não ser a mesma futuramente, podendo liberar um valor menor ou até não aprovar em nenhum banco após uma nova análise do CPF. Hoje você tem essa condição disponível; se quiser, posso te ajudar a analisar com calma para decidir da melhor forma.',
+    official:['valor aprovado','não costuma aumentar','taxa de juros','política dos bancos','varia','nova análise','cpf','pode liberar menor','não aprovar','condição disponível']
+  },
+  {
+    id:'desconto_fgts_demissao', name:'Letícia', type:'Dúvida: desconto do FGTS', profile:'Cliente insegura',
+    message:'Mas pode descontar do meu FGTS quando eu for demitido?',
+    stage:'duvida', context:'vendas', difficulty:2,
+    history:[['Hoje - Vendas','Cliente está avaliando uma proposta de Crédito do Trabalhador.'],['Agora - Cliente','Questionou se pode haver desconto do FGTS em caso de demissão.']],
+    hint:'Explique que a autorização é opcional pelo app da Carteira de Trabalho e que pode aumentar a chance de aprovação e melhorar taxa.',
+    suggested:'Essa opção depende da autorização do próprio cliente no aplicativo da Carteira de Trabalho. Ela é opcional, ou seja, só acontece conforme o que você autorizar. Quando essa opção fica ativa, a chance de aprovação pode ser maior e também pode ajudar na busca por taxas mais baixas, porque o banco passa a ter uma garantia maior sobre a proposta.',
+    official:['opcional','cliente autorizar','aplicativo da carteira de trabalho','chance de aprovação','taxas mais baixas','garantia maior','proposta']
+  },
+  {
+    id:'app_mostra_proposta_melhor', name:'André', type:'Objeção: app mostra proposta melhor', profile:'Cliente comparando informações',
+    message:'Mas no meu aplicativo da Carteira de Trabalho aparece uma proposta bem melhor.',
+    stage:'objeção', context:'vendas', difficulty:3,
+    history:[['Hoje - Vendas','Cliente recebeu uma proposta oficial do banco.'],['Agora - Cliente','Comparou com a simulação exibida no aplicativo.']],
+    hint:'Explique que o app mostra uma simulação automática, mas a aprovação real depende da análise oficial do banco.',
+    suggested:'Entendo, André. O valor que aparece no aplicativo da Carteira de Trabalho é uma simulação automática. Quando enviamos a proposta para o banco, ele realiza a análise oficial, consultando informações como Banco Central, score, políticas internas e a margem real disponível. Por isso o valor aprovado pode ser diferente do que aparece inicialmente no aplicativo. No seu caso, o valor máximo que está aprovando agora é de R$ XXXX.',
+    official:['simulação automática','análise oficial','banco central','score','políticas internas','margem real disponível','valor aprovado','valor máximo','R$ XXXX']
+  },
+  {
+    id:'vou_pensar_investigar_objeção', name:'Bianca', type:'Recuperação: vou pensar', profile:'Cliente em dúvida',
+    message:'Vou pensar melhor e depois te chamo.',
+    stage:'recuperacao', context:'vendas', difficulty:2,
+    history:[['Hoje - Vendas','Cliente recebeu a proposta, mas não confirmou a contratação.'],['Agora - Cliente','Disse que vai pensar e chamar depois.']],
+    hint:'Não encerre de imediato. Pergunte de forma leve se o motivo é valor, prazo, parcela ou alguma dúvida.',
+    suggested:'Tudo bem, Bianca. Só para eu conseguir te ajudar melhor: geralmente quando meus clientes dizem que vão pensar, é porque não gostaram do valor liberado, da parcela ou do prazo, ou ficaram com alguma dúvida sobre a contratação. Qual desses pontos é o seu caso? Assim eu consigo verificar se existe alguma alternativa melhor para você.',
+    official:['tudo bem','valor liberado','parcela','prazo','dúvida','qual desses pontos','alternativa melhor','ajudar']
+  },
+  {
+    id:'cliente_dataprev', name:'Eduardo', type:'Encaminhamento: cliente na Dataprev', profile:'Cliente buscando CLT',
+    message:'Quero simular um empréstimo CLT.',
+    stage:'encaminhamento', context:'vendas', difficulty:3,
+    history:[['Sistema - Análise','Ao consultar, foi identificado que o cliente está na Dataprev.'],['Agora - Cliente','Solicitou simulação de Crédito do Trabalhador/CLT.']],
+    hint:'Explique a situação de forma simples e ofereça outros produtos. Não diga apenas que não dá.',
+    suggested:'Eduardo, verifiquei aqui que neste momento não conseguimos seguir com a simulação do Crédito do Trabalhador por conta da situação identificada na Dataprev. Mas isso não significa que você ficou sem opção. Posso verificar outras modalidades de crédito disponíveis para você e tentar encontrar uma alternativa que atenda melhor à sua necessidade.',
+    official:['não conseguimos seguir','crédito do trabalhador','dataprev','não significa sem opção','outras modalidades','alternativa','necessidade','verificar']
+  }
+
 ];

@@ -60,3 +60,11 @@ Para salvar histórico online depois que configurarmos o Supabase:
 Tabela esperada: `trainings`.
 
 Depois eu posso ajudar a criar a tabela no Supabase passo a passo.
+
+## Atualização de casos comerciais
+Foram adicionados casos de vendas relacionados a:
+- valor baixo e cliente querendo esperar;
+- dúvida sobre desconto do FGTS em caso de demissão;
+- proposta melhor aparecendo no app da Carteira de Trabalho;
+- cliente dizendo que vai pensar com investigação de objeção;
+- cliente CLT identificado na Dataprev com oferta de outros produtos.
