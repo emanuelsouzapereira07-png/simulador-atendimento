@@ -3,7 +3,7 @@ const localResultsKey='central_concredito_resultados_v15';
 let allTrainings=[]; let selectedId=null;
 // Cole aqui a URL do backend da Vercel quando ele estiver pronto.
 // Exemplo: const BACKEND_BASE_URL = 'https://seu-projeto.vercel.app';
-const BACKEND_BASE_URL = '';
+const BACKEND_BASE_URL = 'https://backend-do-simulador-con-cr-dito-git-main-suporte3.vercel.app';
 function loadLocalResults(){ try{return JSON.parse(localStorage.getItem(localResultsKey)||'[]')}catch{return []} }
 function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); $(id).classList.add('active'); }
 function baseUrl(){ return (BACKEND_BASE_URL||'').replace(/\/api\/analisar\/?$/,'').replace(/\/$/,''); }
