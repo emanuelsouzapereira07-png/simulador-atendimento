@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel Gestor | Academia de Vendas ConCrédito</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="brand-header">
+      <button class="brand-logo" id="backHome" title="Voltar ao simulador">
+        <div class="brand-mark">C</div>
+        <div><strong>ConCrédito</strong><span>CONSIGNADOS</span></div>
+      </button>
+      <div class="top-actions"><span class="pill">Painel gestor</span></div>
+    </header>
+
+    <section class="screen active" id="loginScreen">
+      <div class="panel admin-login">
+        <h1>Painel da Gerente</h1>
+        <p>Acesse os treinamentos finalizados, respostas dos vendedores, ranking por time e exportações.</p>
+        <label class="full-label">Usuário<input id="adminUser" placeholder="usuário" /></label>
+        <label class="full-label">Senha<input id="adminPass" type="password" placeholder="senha" /></label>
+        <div class="button-row"><button class="primary" id="loginBtn">Entrar</button></div>
+        <p class="warning">Enquanto o Supabase não estiver configurado, o painel mostra apenas dados locais deste navegador.</p>
+      </div>
+    </section>
+
+    <section class="screen" id="dashboardScreen">
+      <div class="panel">
+        <div class="panel-title admin-title"><div><h1>Dashboard</h1><p id="adminStatus">Carregando...</p></div><div class="button-row"><button class="secondary" id="refreshBtn">Atualizar</button><button class="secondary" id="exportCsvBtn">Exportar Excel</button><button class="secondary" id="exportPdfBtn">Exportar PDF</button><button class="ghost" id="logoutBtn">Sair</button></div></div>
+        <div class="final-grid admin-grid">
+          <div><span>Treinamentos</span><strong id="totalTrainings">0</strong></div>
+          <div><span>Média geral</span><strong id="avgGeneral">0%</strong></div>
+          <div><span>Melhor time</span><strong id="bestTeam">-</strong></div>
+          <div><span>Melhor vendedor</span><strong id="bestSeller">-</strong></div>
+          <div><span>Aprovados</span><strong id="approvedCount">0</strong></div>
+          <div><span>Times ativos</span><strong id="activeTeams">0</strong></div>
+        </div>
+        <div class="feedback-grid">
+          <div class="report"><h2>Ranking geral</h2><div id="rankingList" class="session-history"></div></div>
+          <div class="report"><h2>Ranking por time</h2><div id="teamList" class="session-history"></div></div>
+        </div>
+        <div class="report"><h2>Treinamentos finalizados</h2><div id="trainingList" class="session-history"></div></div>
+        <div class="report hidden" id="detailPanel"><h2>Detalhes do treinamento</h2><div id="detailContent"></div><div class="button-row"><button class="secondary" id="closeDetailBtn">Fechar detalhes</button><button class="secondary" id="deleteTrainingBtn">Apagar histórico</button></div></div>
+      </div>
+    </section>
+  </main>
+  <script src="admin.js"></script>
+</body>
+</html>

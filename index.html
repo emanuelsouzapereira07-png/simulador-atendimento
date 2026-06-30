@@ -18,7 +18,7 @@
       </button>
       <div class="top-actions">
         <span class="pill" id="iaStatus">IA local ativa</span>
-        <button class="ghost" id="openConfigBtn">Configurações</button>
+        <button class="ghost" id="adminBtn" type="button">Painel gestor</button>
       </div>
     </header>
 
@@ -31,6 +31,19 @@
           <p class="training-note">O objetivo é treinar negociação, quebra de objeções, condução, segurança, empatia, comunicação e recuperação comercial.</p>
 
           <div class="settings">
+            <label>Nome do vendedor
+              <input id="sellerName" placeholder="Digite seu nome" />
+            </label>
+            <label>Time de vendas
+              <select id="sellerTeam">
+                <option value="">Selecione</option>
+                <option>Savana</option>
+                <option>Santo Crédito</option>
+                <option>Construindo Sonhos</option>
+                <option>Tropa de Elite</option>
+                <option>Esquadrão Fênix</option>
+              </select>
+            </label>
             <label>Tempo de plantão
               <select id="gameTime">
                 <option value="180">3 minutos</option>
@@ -99,23 +112,6 @@
         </div>
         <p class="warning">Respostas muito curtas como “ok”, “vou ver”, “s” ou “pode” recebem nota baixa.</p>
         <button class="primary" id="backBtn">Voltar</button>
-      </div>
-    </section>
-
-    <section class="screen" id="configScreen">
-      <div class="panel">
-        <h2>Configurações da IA</h2>
-        <p>Use o modo local para testar sem backend. Quando publicar o backend na Vercel, informe a URL abaixo ou fixe no arquivo <code>script.js</code>.</p>
-        <label class="full-label">URL do Backend
-          <input id="backendUrl" placeholder="https://seu-backend.vercel.app/api/analisar" />
-        </label>
-        <div class="switch-row">
-          <label><input type="checkbox" id="useRealIa" /> Usar IA real via backend</label>
-        </div>
-        <div class="button-row">
-          <button class="primary" id="saveConfigBtn">Salvar</button>
-          <button class="secondary" id="configBackBtn">Voltar</button>
-        </div>
       </div>
     </section>
 
@@ -211,6 +207,7 @@
         <div class="trophy" id="trophy">★</div>
         <h1>Fim do plantão</h1>
         <p id="summary"></p>
+        <p class="training-note" id="saveStatus"></p>
         <div class="final-grid">
           <div><span>Atendidos</span><strong id="finalSolved">0</strong></div>
           <div><span>Pontos</span><strong id="finalScore">0</strong></div>
@@ -221,6 +218,7 @@
         </div>
         <div class="report"><h2>Relatório do Supervisor IA</h2><p id="reportText"></p></div>
         <div class="report"><h2>O que melhorar</h2><ul id="improvementList"></ul></div>
+        <div class="report"><h2>Ranking local</h2><div id="rankingPreview" class="session-history"></div></div>
         <div class="report"><h2>Histórico do plantão</h2><div id="sessionHistory" class="session-history"></div></div>
         <div class="button-row center"><button class="primary" id="restartBtn">Jogar novamente</button><button class="secondary" id="exportBtn">Exportar relatório</button></div>
       </div>

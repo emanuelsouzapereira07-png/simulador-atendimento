@@ -1,49 +1,62 @@
-# Central ConCrédito — Simulador de Vendas V15
+# Academia de Vendas ConCrédito — V15
 
-Esta versão mantém o visual original da V14 e altera apenas o fluxo solicitado para o setor de vendas.
+Versão com visual original preservado e melhorias implementadas:
 
-## Alterações implementadas
+- Foco em Vendas.
+- Casos comerciais: parcela menor, valor maior, vou pensar, concorrente, juros, medo de golpe etc.
+- Quitação adaptada para encaminhamento ao Suporte.
+- Botão de Resposta Oficial removido antes da avaliação.
+- Resposta recomendada aparece apenas após o vendedor responder.
+- Campo de nome do vendedor e time de vendas.
+- Times: Savana, Santo Crédito, Construindo Sonhos, Tropa de Elite e Esquadrão Fênix.
+- Níveis: Aprendiz de Suporte, Atendente em Treinamento, Atendente Júnior, Atendente Pleno, Atendente Sênior, Especialista em Atendimento, Supervisor de Atendimento e Instrutor ConCrédito.
+- Ranking local para vendedores.
+- Painel gestor em `admin.html`.
+- Exportação CSV/Excel e impressão PDF.
+- Backend Gemini preparado.
+- Supabase preparado para salvar resultados online.
 
-- Foco alterado de Suporte para Vendas.
-- Removido o botão **Resposta oficial** antes da avaliação.
-- A resposta recomendada aparece somente após o vendedor responder e receber avaliação.
-- Removidos os casos de pagamento devolvido e demais casos exclusivos do suporte.
-- Adicionados casos comerciais:
-  - cliente quer parcelas menores;
-  - cliente quer valor maior;
-  - cliente vai pensar;
-  - interesse inicial;
-  - medo de golpe;
-  - juros altos;
-  - concorrente;
-  - cliente sumiu;
-  - cliente sem tempo.
-- Quitação adaptada como encaminhamento ao suporte.
-- Supervisor Local ajustado para avaliar negociação, condução, empatia, segurança e recuperação comercial.
-- Backend preparado para Gemini via Vercel usando `GEMINI_API_KEY`.
+## Login do painel gestor
 
-## Publicação
+Usuário: `suporte`
 
-### Frontend GitHub Pages
-Envie para o repositório do site:
+Senha: `suporte123`
+
+## Frontend no GitHub Pages
+
+Enviar para o repositório do site:
 
 - `index.html`
 - `style.css`
 - `script.js`
 - `casos.js`
-- `README.md`
+- `admin.html`
+- `admin.js`
+- `README.md` opcional
 
-### Backend Vercel
-Envie para o repositório da API:
+## Backend na Vercel
+
+Enviar para o repositório da API:
 
 - `api/`
 - `prompts/`
 - `package.json`
 - `vercel.json`
-- `.env.example`
+- `.env.example` opcional
 
-Na Vercel, adicione a variável:
+## Variáveis na Vercel
 
-`GEMINI_API_KEY`
+Para Gemini:
 
-com a chave do Gemini.
+- `GEMINI_API_KEY`
+
+Para salvar histórico online depois que configurarmos o Supabase:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+## Banco de dados Supabase
+
+Tabela esperada: `trainings`.
+
+Depois eu posso ajudar a criar a tabela no Supabase passo a passo.
