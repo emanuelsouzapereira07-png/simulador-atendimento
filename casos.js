@@ -1,14 +1,92 @@
 window.CONCREDITO_CASES = [
-  {id:'pagamento_devolvido', name:'João', type:'Pagamento devolvido', profile:'Apressado', message:'e meu dinheiro', stage:'pagamento_devolvido', context:'pagamento_devolvido', difficulty:1, history:[['Ontem - BOT','Cliente informou que assinou o contrato e queria saber quando o valor cairia.'],['Ontem - Suporte','Foi identificado pagamento devolvido e pendência nos dados bancários.'],['Hoje - Cliente','e meu dinheiro']], hint:'Explique que houve pendência no pagamento, informe que o banco não está dentro da política, peça nova chave PIX ou conta aceita e diga o próximo passo.', suggested:'João, tudo bem? Seu contrato foi aprovado, mas tivemos uma pendência no pagamento. O banco informado não está dentro da nossa política de pagamento. Vou enviar a lista dos bancos aceitos. Pode enviar uma nova chave PIX ou conta bancária válida para liberarmos o pagamento o mais rápido possível.', official:['contrato aprovado','pendência','pagamento','banco informado','política de pagamento','lista dos bancos aceitos','nova chave pix','conta bancária válida','liberar o pagamento']},
-  {id:'proposta_reprovada', name:'Carlos', type:'Proposta reprovada', profile:'Indeciso', message:'e ai aprovou?', stage:'proposta_reprovada', context:'reprovada', difficulty:1, history:[['Hoje - Suporte','Proposta enviada para segunda análise no banco Qi.'],['Hoje - Cliente','tô aguardando'],['Agora - Cliente','e ai aprovou?']], hint:'Informe que a proposta não foi aprovada na segunda análise da Qi, mas ofereça tentativa em outros bancos parceiros.', suggested:'Carlos, sua proposta não foi aprovada na segunda análise do banco Qi. Mas não se preocupe. Temos outros bancos parceiros e podemos realizar uma nova simulação. Você gostaria de tentar novamente?', official:['não foi aprovada','segunda análise','banco qi','outros bancos parceiros','nova simulação','tentar novamente']},
-  {id:'qualificar_quitacao', name:'Carlos', type:'Quitação ou antecipação', profile:'Objetivo', message:'quero quitar', stage:'qualificar_quitacao', context:'quitacao', difficulty:1, history:[['Mês passado - Cliente','Perguntou sobre desconto de juros.'],['Hoje - Cliente','quero quitar']], hint:'Não consulte direto. Primeiro pergunte se deseja quitar todo o contrato ou antecipar últimas parcelas.', suggested:'Carlos, consigo verificar duas opções: 1 - Quitar todo o contrato. 2 - Antecipar as últimas parcelas. As duas possuem desconto de juros. Responda apenas 1 ou 2 para consultar os valores.', official:['duas opções','quitar todo o contrato','antecipar as últimas parcelas','desconto de juros','responda apenas 1 ou 2']},
-  {id:'golpe', name:'Rafael', type:'Cliente desconfiado', profile:'Desconfiado', message:'isso e golpe?', stage:'seguranca_legitimidade', context:'golpe', difficulty:2, history:[['Hoje - Cliente','Recebi mensagem falando pra pagar taxa pra liberar o empréstimo.'],['Hoje - BOT','Transferido para suporte.'],['Agora - Cliente','isso e golpe?']], hint:'Acolha a preocupação. Explique que a ConCrédito trabalha com contratação digital e canais oficiais. Se pediram taxa antecipada, orientar a não pagar.', suggested:'Rafael, entendo sua preocupação. A ConCrédito é uma empresa de consignados e o processo é feito com contratação digital e validações oficiais. Se alguém pediu pagamento de taxa antecipada para liberar empréstimo, não realize esse pagamento. Sempre confirme pelos nossos canais oficiais antes de seguir.', official:['entendo sua preocupação','concredito','contratação digital','canais oficiais','taxa antecipada','não realize pagamento']},
-  {id:'assinatura', name:'Fernanda', type:'Pendente de assinatura', profile:'Confusa', message:'recebi email mais nao sei oq fazer', stage:'orientacao_assinatura', context:'assinatura', difficulty:1, history:[['Hoje - BOT','Cliente recebeu e-mail de assinatura.'],['Hoje - Cliente','chegou um email da qi sign'],['Agora - Cliente','recebi email mais nao sei oq fazer']], hint:'Oriente a abrir o link da QI Sign, realizar assinatura digital e validação solicitada.', suggested:'Fernanda, esse e-mail é para assinatura digital do contrato. Você deve clicar no link, seguir as etapas de validação e concluir a assinatura. Se aparecer alguma dificuldade no processo, pode me chamar que eu te ajudo.', official:['assinatura digital','contrato','clicar no link','validação','concluir a assinatura']},
-  {id:'baixa_quitacao', name:'Marina', type:'Baixa de quitação', profile:'Ansiosa', message:'já paguei a quitação, quando vai dar baixa?', stage:'baixa_quitacao', context:'baixa_quitacao', difficulty:2, history:[['Dia 18 - Suporte','Cliente recebeu o valor de quitação.'],['Dia 19 - Cliente','Informou que realizou o pagamento.'],['Hoje - Cliente','já paguei a quitação, quando vai dar baixa?']], hint:'Explique que a baixa depende do repasse/recebimento pelo banco, normalmente após o dia 20.', suggested:'Marina, após o pagamento ser repassado e recebido pelo banco, a baixa ocorre conforme o fluxo bancário. Normalmente o banco recebe os valores no dia 20 e a baixa acontece após esse recebimento.', official:['pagamento repassado','recebido pelo banco','fluxo bancário','dia 20','baixa após o recebimento']},
-  {id:'seguro_desemprego', name:'Patrícia', type:'Seguro desemprego', profile:'Preocupada', message:'esse empréstimo tem seguro desemprego?', stage:'seguro_desemprego', context:'clt', difficulty:2, history:[['Hoje - Cliente','Simulou Crédito do Trabalhador pela CTPS Digital.'],['Agora - Cliente','esse empréstimo tem seguro desemprego?']], hint:'Informe com segurança que nessa proposta pela CTPS Digital não possui seguro desemprego. Evite inventar cobertura.', suggested:'Patrícia, nessa proposta feita pela Carteira de Trabalho Digital não possui seguro desemprego vinculado ao contrato. Posso seguir te ajudando com as demais informações da contratação.', official:['carteira de trabalho digital','não possui seguro desemprego','contrato','seguir ajudando']},
-  {id:'boleto', name:'André', type:'Solicitação de boleto', profile:'Formal', message:'solicito o boleto para continuar pagando, saí da empresa', stage:'boleto_saida_empresa', context:'boleto', difficulty:2, history:[['Mês passado - Cliente','Contrato CLT ativo.'],['Hoje - Cliente','Informou saída da empresa e pediu orientação.']], hint:'Explique que, após saída da empresa, os pagamentos seguem via boleto mensal. Solicite dados necessários se preciso.', suggested:'André, como você saiu da empresa, a continuidade dos pagamentos passa a ser feita por boletos mensais. Vou verificar o seu contrato e te orientar sobre a emissão dos próximos boletos para manter tudo regularizado.', official:['saiu da empresa','boletos mensais','verificar contrato','próximos boletos','regularizado']},
-  {id:'ctps_autorizacao', name:'Juliana', type:'Erro na CTPS Digital', profile:'Irritada', message:'não consigo autorizar na carteira, só dá erro', stage:'erro_ctps', context:'ctps', difficulty:3, history:[['Hoje - Cliente','Tentou autorizar o Crédito do Trabalhador na CTPS Digital.'],['Agora - Cliente','não consigo autorizar na carteira, só dá erro']], hint:'Acolha, peça para tentar outro número se o erro for telefone/autorização e oriente retornar com print se persistir.', suggested:'Juliana, entendo. Esse erro pode acontecer na etapa de autorização da Carteira de Trabalho Digital. Tente realizar a autorização utilizando outro número de telefone vinculado ao seu acesso. Se o erro continuar, me envie um print da tela para eu verificar e te orientar no próximo passo.', official:['carteira de trabalho digital','autorização','outro número de telefone','se continuar','print da tela','próximo passo']},
-  {id:'operacao_manual', name:'Roberto', type:'Operação Manual OP', profile:'Apressado', message:'minha proposta ficou em operação manual, o que significa?', stage:'operacao_manual', context:'op', difficulty:3, history:[['Hoje - Suporte','Proposta entrou em operação manual.'],['Agora - Cliente','minha proposta ficou em operação manual, o que significa?']], hint:'Explique que é análise operacional/manual, sem prometer aprovação nem prazo absoluto. Informe acompanhamento.', suggested:'Roberto, operação manual significa que a proposta precisa passar por uma conferência operacional antes de seguir. Vou acompanhar essa etapa e te aviso assim que houver retorno. Não consigo garantir aprovação, mas vou seguir verificando para te orientar corretamente.', official:['operação manual','conferência operacional','acompanhar','retorno','não garantir aprovação','orientar corretamente']},
-  {id:'pagamento_nao_recebido', name:'Kelly', type:'Pagamento não recebido', profile:'Ansiosa', message:'assinei dia 26 e ainda não caiu na conta', stage:'pagamento_nao_recebido', context:'pagamento', difficulty:2, history:[['Dia 26 - Cliente','Assinou contrato.'],['Hoje - Cliente','Informa que contrato chegou assinado, mas valor não caiu.']], hint:'Peça CPF para localizar e explique que vai verificar status do pagamento, sem garantir depósito imediato.', suggested:'Kelly, consigo verificar para você. Por favor, me informe seu CPF para eu localizar a proposta no sistema e confirmar em qual etapa está o pagamento.', official:['cpf','localizar a proposta','sistema','confirmar etapa','pagamento']},
-  {id:'fgts_bloqueio', name:'Jales', type:'FGTS bloqueado', profile:'Formal', message:'consta bloqueio no meu FGTS e não reconheço o contrato', stage:'fgts_bloqueio', context:'fgts', difficulty:3, history:[['Hoje - Cliente','Solicitou cópia do contrato e comprovante.'],['Agora - Cliente','consta bloqueio no meu FGTS e não reconheço o contrato']], hint:'Solicite CPF para localizar, informe que irá verificar contrato vinculado e orientar sobre comprovantes, sem assumir fraude.', suggested:'Jales, entendo sua solicitação. Para eu localizar corretamente qualquer contrato vinculado ao seu FGTS e verificar a documentação disponível, por favor me informe seu CPF. Assim consigo confirmar as informações no sistema e te orientar sobre contrato e comprovante.', official:['cpf','localizar contrato','fgts','documentação','confirmar no sistema','contrato e comprovante']}
+  {
+    id:'parcelas_menores', name:'Carlos', type:'Objeção: parcela alta', profile:'Cliente cauteloso',
+    message:'Eu recebi uma proposta de R$ 5.600,00 em 18x de R$ 477,77, mas queria parcelas menores.',
+    stage:'negociacao', context:'vendas', difficulty:1,
+    history:[['Hoje - Vendas','Cliente recebeu proposta de R$ 5.600,00 em 18x de R$ 477,77.'],['Agora - Cliente','Solicitou parcelas menores.']],
+    hint:'Entenda a objeção, acolha e pergunte qual parcela ficaria confortável para fazer nova simulação.',
+    suggested:'Entendo, Carlos! Sem problemas. Vamos buscar uma proposta que faça mais sentido para você. Qual valor de parcela ficaria mais confortável no seu orçamento? Com essa informação, faço uma nova simulação e verifico as melhores opções disponíveis.',
+    official:['entendo','sem problemas','proposta','parcela confortável','orçamento','nova simulação','melhores opções']
+  },
+  {
+    id:'valor_maior', name:'Mariana', type:'Objeção: valor baixo', profile:'Cliente objetiva',
+    message:'O valor ficou muito baixo, eu precisava de pelo menos R$ 10.000.',
+    stage:'negociacao', context:'vendas', difficulty:2,
+    history:[['Hoje - Vendas','Cliente fez simulação, mas não ficou satisfeita com o valor liberado.'],['Agora - Cliente','Disse que precisava de pelo menos R$ 10.000.']],
+    hint:'Mostre que vai buscar alternativa. Não prometa aprovação; ofereça verificar maior valor ou outra modalidade.',
+    suggested:'Entendo! Vou verificar se existe alguma opção que libere um valor maior para você. Caso não seja possível nesta modalidade, também posso consultar outras alternativas de crédito. Só um instante que já verifico.',
+    official:['entendo','verificar','valor maior','opção','modalidade','alternativas de crédito','já verifico']
+  },
+  {
+    id:'vou_pensar', name:'João', type:'Objeção: vou pensar', profile:'Cliente indeciso',
+    message:'Vou pensar e depois eu retorno.',
+    stage:'recuperacao', context:'vendas', difficulty:1,
+    history:[['Hoje - Vendas','Cliente recebeu explicação sobre a proposta.'],['Agora - Cliente','Informou que vai pensar e retornar depois.']],
+    hint:'Não pressione. Pergunte se ficou alguma dúvida e deixe aberta a possibilidade de nova simulação.',
+    suggested:'Entendo, mas você possui alguma dúvida sobre a contratação? Se surgir qualquer dúvida ou quiser que eu faça uma nova simulação, é só me chamar. Estarei à disposição para ajudar.',
+    official:['entendo','dúvida','contratação','nova simulação','à disposição','ajudar']
+  },
+  {
+    id:'interesse_inicial', name:'Fernanda', type:'Interesse inicial', profile:'Cliente curiosa',
+    message:'Olá, queria saber como funciona o empréstimo com carteira assinada.',
+    stage:'captacao', context:'vendas', difficulty:1,
+    history:[['Agora - Cliente','Perguntou sobre empréstimo para quem tem carteira assinada.']],
+    hint:'Explique de forma simples e avance para a simulação solicitando as informações necessárias.',
+    suggested:'Olá, Fernanda! Funciona como uma simulação de crédito para quem trabalha com carteira assinada. Eu posso verificar as opções disponíveis para você. Para começar, me confirme por favor seu CPF e a média da sua renda mensal.',
+    official:['olá','carteira assinada','simulação','opções disponíveis','cpf','renda']
+  },
+  {
+    id:'medo_golpe', name:'Patrícia', type:'Objeção: medo de golpe', profile:'Cliente desconfiada',
+    message:'Isso é golpe? Estou com medo de passar meus dados.',
+    stage:'seguranca', context:'vendas', difficulty:2,
+    history:[['Hoje - Cliente','Demonstrou interesse, mas ficou insegura sobre o processo.']],
+    hint:'Passe segurança, explique que a ConCrédito é uma empresa de consignados e que os dados são usados apenas para simulação/análise.',
+    suggested:'Patrícia, entendo sua preocupação. A ConCrédito Consignados trabalha com simulações de crédito e seus dados são utilizados apenas para consultar as opções disponíveis com segurança. Posso te explicar cada etapa antes de seguirmos, tudo bem?',
+    official:['entendo','preocupação','concrédito','simulações de crédito','dados','segurança','explicar cada etapa']
+  },
+  {
+    id:'juros_altos', name:'Roberto', type:'Objeção: juros altos', profile:'Cliente comparando',
+    message:'Achei os juros altos, acho que vou procurar outro lugar.',
+    stage:'negociacao', context:'vendas', difficulty:2,
+    history:[['Hoje - Vendas','Cliente recebeu proposta e questionou taxa/juros.']],
+    hint:'Acolha a objeção, explique que pode revisar opções e tentar encontrar uma condição mais adequada.',
+    suggested:'Entendo, Roberto. Podemos revisar a simulação para tentar encontrar uma condição que fique mais adequada para você. Às vezes o prazo ou o valor solicitado influencia bastante na parcela. Quer que eu verifique uma nova opção?',
+    official:['entendo','revisar','simulação','condição','prazo','valor solicitado','nova opção']
+  },
+  {
+    id:'concorrente', name:'Aline', type:'Objeção: outro banco', profile:'Cliente comparando proposta',
+    message:'Outro banco me ofereceu uma condição melhor.',
+    stage:'concorrencia', context:'vendas', difficulty:3,
+    history:[['Hoje - Cliente','Está comparando propostas antes de decidir.']],
+    hint:'Não critique concorrente. Peça detalhes da condição e ofereça verificar uma alternativa.',
+    suggested:'Entendo, Aline. Para eu tentar te ajudar melhor, você pode me dizer qual foi a condição oferecida, como valor liberado, parcela e prazo? Assim consigo comparar com cuidado e verificar se temos uma alternativa mais interessante para você.',
+    official:['entendo','condição oferecida','valor liberado','parcela','prazo','comparar','alternativa']
+  },
+  {
+    id:'sumiu_whatsapp', name:'Lucas', type:'Recuperação: cliente sumiu', profile:'Cliente ocupado',
+    message:'Visualizou a proposta e não respondeu mais.',
+    stage:'recuperacao', context:'vendas', difficulty:2,
+    history:[['Ontem - Vendas','Proposta enviada ao cliente.'],['Hoje - Sistema','Cliente visualizou e não respondeu.']],
+    hint:'Faça uma retomada leve, sem cobrança, oferecendo ajuda e nova simulação se necessário.',
+    suggested:'Lucas, passando para saber se ficou alguma dúvida sobre a proposta que te enviei. Se a parcela ou o valor não ficaram ideais, posso fazer uma nova simulação e buscar uma opção que faça mais sentido para você.',
+    official:['dúvida','proposta','parcela','valor','nova simulação','opção','sentido para você']
+  },
+  {
+    id:'sem_tempo', name:'Bruna', type:'Objeção: sem tempo', profile:'Cliente apressada',
+    message:'Agora não consigo ver isso, estou sem tempo.',
+    stage:'recuperacao', context:'vendas', difficulty:1,
+    history:[['Hoje - Cliente','Cliente estava em atendimento, mas disse estar sem tempo.']],
+    hint:'Respeite o tempo do cliente e combine um retorno.',
+    suggested:'Sem problemas, Bruna. Para não te atrapalhar, posso te chamar em outro horário. Qual período fica melhor para você: manhã, tarde ou noite?',
+    official:['sem problemas','outro horário','qual período','manhã','tarde','noite']
+  },
+  {
+    id:'quitacao_encaminhamento', name:'Rafael', type:'Encaminhamento: quitação', profile:'Cliente direto',
+    message:'Quero quitar meu contrato antecipadamente.',
+    stage:'encaminhamento', context:'vendas_suporte', difficulty:1,
+    history:[['Agora - Cliente','Solicitou quitação antecipada de contrato já existente.']],
+    hint:'Vendas não calcula quitação. Direcione ao suporte de forma educada e segura.',
+    suggested:'Como você deseja realizar a quitação antecipada do seu contrato, vou direcionar o seu atendimento ao setor responsável, que prestará todo o suporte necessário e dará continuidade à sua solicitação. Tudo bem?',
+    official:['quitação antecipada','direcionar','setor responsável','suporte necessário','continuidade','tudo bem']
+  }
 ];

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Central ConCrédito | Simulador Enterprise</title>
+  <title>Central ConCrédito | Simulador de Vendas</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -25,10 +25,10 @@
     <section class="screen active" id="startScreen">
       <div class="hero-grid">
         <div class="start-card">
-          <span class="badge">Simulador Inteligente de Atendimento</span>
+          <span class="badge">Simulador Inteligente de Vendas</span>
           <h1>Central ConCrédito</h1>
-          <p>Treinamento corporativo para o suporte, com casos reais, chat estilo WhatsApp, Supervisor IA, relatórios, níveis, XP e avaliação rigorosa por contexto.</p>
-          <p class="training-note">O objetivo é treinar interpretação, condução, segurança, empatia, comunicação e recuperação comercial.</p>
+          <p>Treinamento corporativo para o time de vendas, com casos reais, chat estilo WhatsApp, Supervisor IA, relatórios, níveis, XP e avaliação por condução comercial.</p>
+          <p class="training-note">O objetivo é treinar negociação, quebra de objeções, condução, segurança, empatia, comunicação e recuperação comercial.</p>
 
           <div class="settings">
             <label>Tempo de plantão
@@ -59,7 +59,7 @@
             <span>Histórico obrigatório</span>
             <span>Cliente com perfil real</span>
             <span>Resposta curta perde pontos</span>
-            <span>Supervisor rigoroso</span>
+            <span>Supervisor comercial</span>
           </div>
 
           <div class="button-row">
@@ -88,16 +88,16 @@
     <section class="screen" id="howScreen">
       <div class="panel">
         <h2>Como o Supervisor IA avalia</h2>
-        <p>O Supervisor avalia a resposta como um líder de suporte: não basta responder certo, é preciso conduzir bem, explicar o próximo passo e evitar risco de comunicação.</p>
+        <p>O Supervisor avalia a resposta como um líder de vendas: não basta responder, é preciso entender a objeção, conduzir bem, negociar com segurança e manter a oportunidade viva.</p>
         <div class="criteria-grid">
           <div><strong>Contexto</strong><span>Uso do histórico e entendimento da etapa.</span></div>
-          <div><strong>Diagnóstico</strong><span>Identificação correta do problema do cliente.</span></div>
-          <div><strong>Condução</strong><span>Motivo, solução e próximo passo.</span></div>
+          <div><strong>Diagnóstico</strong><span>Identificação correta da necessidade ou objeção do cliente.</span></div>
+          <div><strong>Condução</strong><span>Pergunta certa, solução e próximo passo comercial.</span></div>
           <div><strong>Segurança</strong><span>Sem promessas impossíveis, termos internos ou orientações erradas.</span></div>
           <div><strong>Empatia</strong><span>Tom humano, acolhedor e profissional.</span></div>
-          <div><strong>Recuperação comercial</strong><span>Quando couber, tentar salvar a venda.</span></div>
+          <div><strong>Recuperação comercial</strong><span>Manter a oportunidade ativa sem pressionar o cliente.</span></div>
         </div>
-        <p class="warning">Respostas como “ok”, “irei verificar”, “vou ver”, “s” ou “pode” recebem nota baixa.</p>
+        <p class="warning">Respostas muito curtas como “ok”, “vou ver”, “s” ou “pode” recebem nota baixa.</p>
         <button class="primary" id="backBtn">Voltar</button>
       </div>
     </section>
@@ -176,7 +176,6 @@
 
             <div class="actions">
               <button class="secondary" id="hintBtn">Dica</button>
-              <button class="secondary" id="modelBtn">Resposta oficial</button>
               <button class="primary" id="sendBtn">Responder</button>
             </div>
 

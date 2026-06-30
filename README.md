@@ -1,59 +1,49 @@
-# Central ConCrédito — Simulador Inteligente de Atendimento V14 Enterprise
+# Central ConCrédito — Simulador de Vendas V15
 
-Esta versão transforma a V13 em uma plataforma de treinamento mais completa para o suporte da ConCrédito.
+Esta versão mantém o visual original da V14 e altera apenas o fluxo solicitado para o setor de vendas.
 
-## O que foi implementado
+## Alterações implementadas
 
-- Banco de casos separado em `casos.js`.
-- Mais casos reais de suporte: pagamento devolvido, reprovação, quitação, baixa de quitação, golpe, assinatura, seguro desemprego, boletos, CTPS, operação manual, pagamento não recebido e FGTS.
-- Chat estilo WhatsApp.
-- Perfis de clientes: apressado, ansioso, confuso, formal, desconfiado, irritado etc.
-- Sistema de níveis, XP e melhor média em `localStorage`.
-- Relatório final com histórico do plantão.
-- Exportação do relatório em TXT.
-- Configuração de IA real via backend.
-- Backend Node.js pronto para Vercel em `api/analisar.js`.
-- Prompt do Supervisor IA em `prompts/supervisor.js`.
-- Fallback local caso a IA real não esteja configurada.
+- Foco alterado de Suporte para Vendas.
+- Removido o botão **Resposta oficial** antes da avaliação.
+- A resposta recomendada aparece somente após o vendedor responder e receber avaliação.
+- Removidos os casos de pagamento devolvido e demais casos exclusivos do suporte.
+- Adicionados casos comerciais:
+  - cliente quer parcelas menores;
+  - cliente quer valor maior;
+  - cliente vai pensar;
+  - interesse inicial;
+  - medo de golpe;
+  - juros altos;
+  - concorrente;
+  - cliente sumiu;
+  - cliente sem tempo.
+- Quitação adaptada como encaminhamento ao suporte.
+- Supervisor Local ajustado para avaliar negociação, condução, empatia, segurança e recuperação comercial.
+- Backend preparado para Gemini via Vercel usando `GEMINI_API_KEY`.
 
-## Como testar offline
+## Publicação
 
-Abra o arquivo `index.html` no navegador.
+### Frontend GitHub Pages
+Envie para o repositório do site:
 
-Por padrão, o simulador usa a IA local. Ela não precisa de internet nem API Key.
+- `index.html`
+- `style.css`
+- `script.js`
+- `casos.js`
+- `README.md`
 
-## Como usar IA real com OpenAI
+### Backend Vercel
+Envie para o repositório da API:
 
-1. Publique este projeto na Vercel.
-2. Configure a variável de ambiente:
+- `api/`
+- `prompts/`
+- `package.json`
+- `vercel.json`
+- `.env.example`
 
-```txt
-OPENAI_API_KEY=sua_chave_da_openai
-```
+Na Vercel, adicione a variável:
 
-3. Opcionalmente configure:
+`GEMINI_API_KEY`
 
-```txt
-OPENAI_MODEL=gpt-4.1-mini
-```
-
-4. Depois de publicar, copie a URL da API:
-
-```txt
-https://seu-projeto.vercel.app/api/analisar
-```
-
-5. No simulador, clique em **Configurações**, cole a URL do backend e marque **Usar IA real via backend**.
-
-## Importante
-
-Nunca coloque a API Key dentro do JavaScript do frontend. A chave deve ficar apenas na Vercel, nas variáveis de ambiente.
-
-## Arquivos principais
-
-- `index.html`: estrutura da interface.
-- `style.css`: identidade visual e layout.
-- `script.js`: lógica do simulador, fila, pontuação, XP, relatório e integração.
-- `casos.js`: banco de casos oficiais.
-- `api/analisar.js`: backend para OpenAI.
-- `prompts/supervisor.js`: prompt do Supervisor IA.
+com a chave do Gemini.
