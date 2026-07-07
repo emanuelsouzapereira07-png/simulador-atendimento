@@ -8,6 +8,17 @@ let conversationTurns = 0;
 let realistic = null;
 let idleTimers = [];
 let audioCtx = null;
+let typingInterruptTimer = null;
+const CLIENT_PERSONAS = [
+  {id:'tranquilo', label:'Cliente tranquilo', emoji:'😊', mood:'tranquilo', trust:62, patience:82, interest:58, names:['Carlos','Mariana','Rafael'], style:'calmo'},
+  {id:'nervoso', label:'Cliente nervoso', emoji:'😡', mood:'irritado', trust:28, patience:28, interest:50, names:['Marcos','Patrícia','André'], style:'caps'},
+  {id:'desconfiado', label:'Cliente desconfiado', emoji:'🤨', mood:'desconfiado', trust:20, patience:55, interest:45, names:['Ana','Roberto','Suelen'], style:'desconfiado'},
+  {id:'perdido', label:'Cliente perdido', emoji:'😕', mood:'confuso', trust:38, patience:62, interest:45, names:['João','Bruna','Paulo'], style:'confuso'},
+  {id:'apressado', label:'Cliente impaciente', emoji:'⏱️', mood:'apressado', trust:42, patience:24, interest:55, names:['Lucas','Bianca','Felipe'], style:'curto'},
+  {id:'whatsapp', label:'Cliente WhatsApp', emoji:'📱', mood:'informal', trust:46, patience:58, interest:48, names:['Dani','Gabi','Leandro'], style:'zap'},
+  {id:'idoso', label:'Cliente idoso', emoji:'👵', mood:'inseguro', trust:40, patience:75, interest:42, names:['Dona Maria','Seu Antônio','Dona Célia'], style:'idoso'},
+  {id:'desesperado', label:'Cliente desesperado', emoji:'😭', mood:'ansioso', trust:32, patience:35, interest:72, names:['Fernanda','Rodrigo','Aline'], style:'emocional'}
+];
 let gameRunId = 0; // controla sessões para evitar herdar estado/timeout de conversa antiga
 function uid(prefix='id'){ return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`; }
 function load(key, fallback=[]){ try{return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));}catch{return fallback;} }
@@ -33,7 +44,7 @@ function playSound(type='msg'){
     osc.start(); osc.stop(audioCtx.currentTime + 0.16);
   }catch(e){}
 }
-function clearIdleTimers(){ idleTimers.forEach(t=>clearTimeout(t)); idleTimers=[]; }
+function clearIdleTimers(){ idleTimers.forEach(t=>clearTimeout(t)); idleTimers=[]; if(typingInterruptTimer){clearTimeout(typingInterruptTimer); typingInterruptTimer=null;} }
 function scheduleIdlePrompts(){
   clearIdleTimers();
   if(selectedMode!=='conversa' || !realistic || realistic.closed) return;
@@ -91,39 +102,65 @@ function selectCase(id){
  $('activeService').classList.remove('hidden');
  $('clientName').textContent=clientName(activeCase);
  $('clientAvatar').textContent=clientName(activeCase)[0];
- $('clientMeta').textContent= selectedMode==='conversa' ? `${activeCase.category} • ${activeCase.profile}` : `${activeCase.product} • ${activeCase.category} • ${activeCase.profile}`;
+ $('clientMeta').textContent= selectedMode==='conversa' ? `${activeCase.product} • ${activeCase.category} • Cliente inteligente ativo` : `${activeCase.product} • ${activeCase.category} • ${activeCase.profile}`;
  $('historyList').innerHTML=(activeCase.history||[]).map(h=>`<div class="historyLine">${h}</div>`).join('')||'<p>Sem histórico.</p>';
- $('chatBox').innerHTML=`<div class="msg clientMsg">${activeCase.message}</div>`; playSound('msg');
+ if($('clientStatusBox')) $('clientStatusBox').innerHTML='';
+ $('chatBox').innerHTML=`<div class="msg clientMsg">${selectedMode==='conversa'?adaptClientText(activeCase.message):activeCase.message}</div>`; updateClientStatus(); playSound('msg');
  $('answerBox').value='';
  $('supervisorBox').classList.add('hidden');
  $$('#caseQueue .caseCard').forEach(e=>e.classList.toggle('active',e.dataset.id===id));
  if(selectedMode==='conversa') scheduleIdlePrompts();
  setTimeout(()=>$('answerBox').focus(),50);
 }
-function clientName(c){ const names={Educado:'Carlos',Indeciso:'João',Bravo:'Marcos',Desconfiado:'Ana',Apressado:'Bruna','Muito Questionador':'Roberto',Comunicativo:'Mariana','Responde pouco':'Paulo'}; return names[c.profile]||'Cliente'; }
+function clientName(c){ if(realistic && realistic.personaName) return realistic.personaName; const names={Educado:'Carlos',Indeciso:'João',Bravo:'Marcos',Desconfiado:'Ana',Apressado:'Bruna','Muito Questionador':'Roberto',Comunicativo:'Mariana','Responde pouco':'Paulo'}; return names[c.profile]||'Cliente'; }
+function choosePersona(c){
+ const forced={Bravo:'nervoso',Desconfiado:'desconfiado',Apressado:'apressado',Indeciso:'perdido','Responde pouco':'whatsapp','Muito Questionador':'desconfiado'};
+ const preferred=CLIENT_PERSONAS.find(p=>p.id===forced[c.profile]);
+ if(preferred && Math.random()<0.75) return preferred;
+ return CLIENT_PERSONAS[Math.floor(Math.random()*CLIENT_PERSONAS.length)];
+}
+function adaptClientText(text){
+ if(!realistic || !realistic.persona) return text;
+ const st=realistic, style=st.persona.style;
+ if(style==='caps') return text.toUpperCase().replace(/\.$/,'!!!');
+ if(style==='zap') return text.replace(/Bom dia|Boa tarde|Olá|Ola/gi,'oi').replace(/você/gi,'vc').replace(/para/gi,'pra').replace(/estou/gi,'to');
+ if(style==='curto') return text.length>90 ? text.split(/[.?!]/)[0]+'?' : text;
+ if(style==='confuso') return text + (text.includes('?')?'':' Não entendi direito.');
+ if(style==='idoso') return 'Meu filho, ' + text.charAt(0).toLowerCase() + text.slice(1);
+ if(style==='emocional') return text + ' Preciso muito resolver isso.';
+ return text;
+}
+function updateClientStatus(){
+ if(!realistic) return;
+ const st=realistic;
+ const box=$('clientStatusBox');
+ if(box){
+   box.innerHTML=`<div><span>Humor</span><b>${st.persona?.emoji||'🙂'} ${st.mood}</b></div><div><span>Confiança</span><b>${Math.round(st.trust)}%</b></div><div><span>Paciência</span><b>${Math.round(st.patience)}%</b></div>`;
+ }
+}
 function createRealisticState(c){
+ const persona=choosePersona(c);
  const base={
-   trust:45,
-   patience:70,
-   interest:55,
-   mood:'neutro',
+   trust:persona.trust,
+   patience:persona.patience,
+   interest:persona.interest,
+   mood:persona.mood,
+   persona,
+   personaName:persona.names[Math.floor(Math.random()*persona.names.length)],
    turns:0,
    closed:false,
    outcome:null,
    usedReplies:[],
-   events:[`Cliente iniciou o atendimento com perfil ${c.profile || 'neutro'}.`],
+   events:[`Cliente inteligente definido: ${persona.label}. O colaborador não vê esse perfil, apenas percebe pelo comportamento.`],
    bestAnswer:null,
    worstAnswer:null,
    bestScore:-1,
    worstScore:101,
    lastClientAt: Date.now(),
-   resolvedTopics: []
+   resolvedTopics: [],
+   turnAnalyses:[],
+   memory:{cpf:null,banco:null,nome:null,contrato:null}
  };
- if(c.profile==='Desconfiado') { base.trust=24; base.patience=62; base.mood='desconfiado'; }
- if(c.profile==='Bravo') { base.trust=32; base.patience=36; base.mood='irritado'; }
- if(c.profile==='Indeciso') { base.trust=42; base.interest=42; base.mood='em dúvida'; }
- if(c.profile==='Apressado') { base.trust=45; base.patience=32; base.mood='apressado'; }
- if(c.profile==='Responde pouco') { base.trust=40; base.patience=55; base.interest=38; }
  return base;
 }
 function evaluate(answer,c){
@@ -191,11 +228,35 @@ function evaluate(answer,c){
  const improvements= offensive?'Nunca use linguagem ofensiva com o cliente. Isso encerra o atendimento e derruba totalmente a confiança.':forbiddenShort?'Respostas como “ok”, “idai”, “tanto faz” ou semelhantes zeram a segurança e a condução do atendimento.':risky?'Evite prometer aprovação, prazo ou usar termos internos.':insecure?'Não passe insegurança. Quando não souber, informe que vai verificar e conduza para uma ação segura.':badShort?'Evite respostas muito curtas. Explique, acolha e direcione.':'Procure fechar com uma pergunta ou próximo passo claro.';
  return {total, metrics, reasons, flags:{badShort,risky,insecure,offensive,forbiddenShort}, feedback, improvements};
 }
-function addMsg(kind,text){ $('chatBox').insertAdjacentHTML('beforeend',`<div class="msg ${kind==='agent'?'agentMsg':'clientMsg'}">${text}</div>`); $('chatBox').scrollTop=$('chatBox').scrollHeight; if(kind==='client') playSound('msg'); }
+function addMsg(kind,text){ const rendered=(kind==='client'&&selectedMode==='conversa')?adaptClientText(text):text; $('chatBox').insertAdjacentHTML('beforeend',`<div class="msg ${kind==='agent'?'agentMsg':'clientMsg'}">${rendered}</div>`); $('chatBox').scrollTop=$('chatBox').scrollHeight; if(kind==='client') playSound('msg'); updateClientStatus(); }
 function showTyping(cb){ playSound('typing'); $('chatBox').insertAdjacentHTML('beforeend',`<div class="msg clientMsg typing" id="typingBubble"><span></span><span></span><span></span></div>`); $('chatBox').scrollTop=$('chatBox').scrollHeight; setTimeout(()=>{ const t=$('typingBubble'); if(t)t.remove(); cb(); }, 750+Math.random()*650); }
+
+function captureMemory(answer){
+ if(!realistic) return;
+ const txt=answer;
+ const cpf=txt.match(/\d{3}\.?\d{3}\.?\d{3}-?\d{2}/);
+ if(cpf) realistic.memory.cpf=cpf[0];
+ const banks=['nubank','caixa','itau','itaú','bradesco','santander','inter','sicredi','banrisul','picpay'];
+ const bank=banks.find(b=>txt.toLowerCase().includes(b));
+ if(bank) realistic.memory.banco=bank;
+ const contract=txt.match(/\d{8,12}\/?[A-Z]{2,4}/i);
+ if(contract) realistic.memory.contrato=contract[0];
+}
+function explainTurn(ev, answer){
+ const entries=[];
+ Object.entries(ev.reasons||{}).forEach(([k,arr])=>arr.slice(0,1).forEach(reason=>entries.push({metric:k, reason})));
+ let alt='Entendo sua preocupação. Vou verificar com segurança e te explicar o próximo passo para resolvermos da melhor forma.';
+ if((answer||'').length<35) alt='Entendo sua dúvida. Para te orientar com segurança, vou verificar as informações e já te explico o próximo passo, tudo bem?';
+ if(ev.flags.risky) alt='Entendo. Eu não consigo prometer aprovação ou prazo sem verificar, mas posso consultar a situação e te orientar pelo caminho correto.';
+ if(ev.flags.insecure) alt='Vou verificar essa informação com segurança antes de te passar qualquer orientação, para evitar erro no seu atendimento.';
+ return {turn:realistic.turns+1, score:ev.total, answer, entries:entries.slice(0,3), alternative:alt};
+}
+
 function applyRealisticState(ev, answer){
  const st=realistic;
  st.turns++;
+ captureMemory(answer);
+ st.turnAnalyses.push(explainTurn(ev, answer));
  if(ev.total > st.bestScore){ st.bestScore=ev.total; st.bestAnswer=answer; }
  if(ev.total < st.worstScore){ st.worstScore=ev.total; st.worstAnswer=answer; }
  if(ev.flags.offensive){ st.trust=0; st.patience=0; st.interest=0; st.events.push('O atendimento usou linguagem ofensiva e o cliente perdeu totalmente a confiança.'); }
@@ -221,7 +282,8 @@ function applyRealisticState(ev, answer){
  st.trust=Math.max(0,Math.min(100,st.trust));
  st.patience=Math.max(0,Math.min(100,st.patience));
  st.interest=Math.max(0,Math.min(100,st.interest));
- st.mood = st.trust>=82?'confiante':st.trust>=60?'mais seguro':st.trust>=35?'em dúvida':st.patience<=15?'irritado':'desconfiado';
+ st.mood = st.patience<=15?'irritado':st.trust>=82?'confiante':st.trust>=60?'mais seguro':st.trust>=35?'em dúvida':'desconfiado';
+ updateClientStatus();
 }
 function pickReply(list){
  const st=realistic;
@@ -256,6 +318,10 @@ function realisticClientReply(c,ev,answer){
  if(ev.flags.badShort) return {text:pickReply(['Só isso? Eu ainda fiquei com dúvida. Pode me explicar melhor?','Mas assim ficou muito vago para mim. Pode detalhar melhor?','Não entendi direito. O que exatamente eu preciso fazer?'])};
  if(ev.flags.insecure) return {text:pickReply(['Mas aí eu fico mais inseguro ainda. Como vou confiar se a informação não ficou clara?','Entendi, mas eu preciso de uma orientação mais segura antes de seguir.','Se nem vocês conseguem confirmar isso, eu fico com receio de assinar.'])};
  if(ev.flags.risky) return {text:pickReply(['Você consegue mesmo garantir isso? Tenho medo de depois dar problema.','Mas se não acontecer desse jeito, como fica?','Prefiro que você me explique certinho, sem promessa, para eu entender.'])};
+ if(st.persona?.id==='perdido' && st.turns>=2) return {text:pickReply(['Desculpa, me perdi um pouco. O que eu tenho que mandar mesmo?','Era CPF ou contrato que você precisava?','Não lembro se já passei meu banco. Precisa de novo?'])};
+ if(st.persona?.id==='whatsapp') return {text: ev.total>=70?pickReply(['ta, e agr?','blz amiga, como faço?','entendi kkk e o próximo passo?']):pickReply(['n entendi','como assim?','moço??'])};
+ if(st.persona?.id==='idoso') return {text:pickReply(['Meu filho, pode explicar mais simples?','Eu não mexo muito no celular. Como faço isso?','Quem fez isso foi meu filho, você consegue me orientar?'])};
+ if(st.persona?.id==='desesperado') return {text: ev.total>=75?pickReply(['Tá, mas eu preciso resolver logo. O que faço agora?','Entendi, só estou bem preocupado. Qual o próximo passo?']):pickReply(['Eu preciso muito desse dinheiro, não consigo esperar sem entender.','Mas ninguém resolve isso para mim?'])};
  if(c.profile==='Desconfiado') return {text:pickReply(['Como eu confirmo que estou falando com a empresa certa?','Vocês cobram alguma taxa antes de liberar?','Tem contrato ou comprovante para eu acompanhar?','E se eu assinar e o dinheiro não cair, como fica?','O número de vocês é oficial mesmo?'])};
  if(c.profile==='Bravo') return {text: ev.total>=75 ? pickReply(['Tá, pelo menos agora você explicou melhor. Qual o prazo correto?','Certo, mas eu preciso de uma solução hoje. Qual o próximo passo?']) : pickReply(['Mas eu já escutei isso antes. Preciso de uma solução clara.','Você não está entendendo, eu preciso resolver isso agora.'])};
  if(c.profile==='Indeciso' || c.category==='Objeção') return {text: ev.total>=75 ? pickReply(['Entendi. Mas será que não vale esperar para ver se libera mais?','E se mês que vem aparecer uma proposta melhor?','Faz sentido, mas ainda estou em dúvida.']) : pickReply(['Mesmo assim acho que vou pensar mais um pouco.','Não sei... minha esposa falou para eu esperar.','Acho que não vou decidir agora.'])};
@@ -274,6 +340,8 @@ function buildSupervisor(ev, answer, outcome, finalScore){
  const best = (st.bestScore>=65 && st.bestAnswer) ? st.bestAnswer : 'Nenhuma resposta atingiu um padrão satisfatório de atendimento.';
  const worst = st.worstAnswer || answer;
  const worstWhy = ev.flags.offensive ? 'Linguagem inadequada/ofensiva.' : ev.flags.forbiddenShort ? 'Resposta curta/inadequada que não acolheu, não explicou e não transmitiu segurança.' : ev.flags.badShort ? 'Resposta muito curta para a situação do cliente.' : 'Foi a resposta que mais reduziu a confiança do cliente.';
+ const detailedErrors=(st.turnAnalyses||[]).map(t=>`<div class="caseCard"><b>Mensagem ${t.turn} • Nota ${t.score}%</b><p><b>Resposta:</b> ${t.answer}</p>${t.entries.length?`<ul>${t.entries.map(e=>`<li><b>${e.metric}:</b> ${e.reason}</li>`).join('')}</ul>`:'<p>Nenhum erro crítico nessa mensagem.</p>'}<p><b>Como poderia responder:</b> ${t.alternative}</p></div>`).join('');
+ const memoryItems=Object.entries(st.memory||{}).filter(([,v])=>v).map(([k,v])=>`<span>${k}: ${v}</span>`).join('');
  return `<h3>Supervisor IA • Nota ${finalScore}%</h3>
  <p><b>Resultado:</b> ${resultLabel}</p>
  <p>${ev.feedback}</p>
@@ -285,6 +353,10 @@ function buildSupervisor(ev, answer, outcome, finalScore){
  <h3>Resposta que mais prejudicou</h3>
  <p>${worst}</p>
  <p><b>Motivo:</b> ${worstWhy}</p>
+ <h3>Erros explicados por mensagem</h3>
+ <div class="cardsList compact">${detailedErrors||'<p>Nenhum detalhe registrado.</p>'}</div>
+ <h3>Memória capturada da conversa</h3>
+ <div class="tags">${memoryItems||'<span>Nenhum dado relevante mencionado</span>'}</div>
  <h3>Resposta ideal</h3>
  <p>${activeCase.ideal||'Sem resposta ideal cadastrada.'}</p>
  <p><b>Ponto de melhoria:</b> ${ev.improvements}</p>`;
@@ -368,5 +440,23 @@ function download(name,content,type='text/plain'){ const a=document.createElemen
 function parseCsv(text){ const lines=text.split(/\r?\n/).filter(Boolean); const headers=lines.shift().split(';').map(h=>h.replace(/^"|"$/g,'')); return lines.map(line=>{const vals=line.match(/("[^"]*(?:""[^"]*)*"|[^;]+)/g)||[]; const obj={}; headers.forEach((h,i)=>obj[h]=String(vals[i]||'').replace(/^"|"$/g,'').replace(/""/g,'"')); obj.id=obj.id||uid('caso'); obj.tags=String(obj.tags||'').split('|').filter(Boolean); obj.modes=String(obj.modes||'plantao|treinamento').split('|').filter(Boolean); obj.history=String(obj.history||'').split('|').filter(Boolean); return obj;}); }
 function importCases(file){ const reader=new FileReader(); reader.onload=()=>{const txt=reader.result; let imported=[]; if(file.name.endsWith('.json')) imported=JSON.parse(txt); else imported=parseCsv(txt); const cases=[...imported,...getCases()]; setCases(cases); audit('Importou',`${imported.length} casos`); notify('Importação de casos',`${imported.length} casos foram importados.`);}; reader.readAsText(file); }
 function resetGameView(){ gameRunId++; clearIdleTimers(); activeCase=null; realistic=null; conversationTurns=0; const t=$('typingBubble'); if(t)t.remove(); $('emptyService').classList.remove('hidden'); $('activeService').classList.add('hidden'); $('chatBox').innerHTML=''; $('answerBox').value=''; $('answerBox').disabled=false; $('answerBox').placeholder='Digite sua resposta como se estivesse atendendo o cliente...'; $('sendAnswerBtn').disabled=false; $('supervisorBox').innerHTML=''; $('supervisorBox').classList.add('hidden'); $$('#caseQueue .caseCard').forEach(e=>e.classList.remove('active')); }
-function initEvents(){ if($('soundToggle')){ $('soundToggle').checked=soundsEnabled(); $('soundToggle').onchange=()=>localStorage.setItem(KEYS.sounds,$('soundToggle').checked?'on':'off'); } $('goHome').onclick=()=>{resetGameView(); show('homeScreen');}; $('openHowToBtn').onclick=()=>show('howToScreen'); $('closeHowTo').onclick=()=>show('homeScreen'); $('openCasesPanel').onclick=()=>show('casePanelScreen'); $('openManagerPanel').onclick=()=>show('managerScreen'); $$('.mode').forEach(b=>b.onclick=()=>{$$('.mode').forEach(x=>x.classList.remove('activeMode')); b.classList.add('activeMode'); selectedMode=b.dataset.mode;}); $('startBtn').onclick=startSession; $('newRandomCase').onclick=()=>{ resetGameView(); renderQueue(); }; $('sendAnswerBtn').onclick=sendAnswer; $('hintBtn').onclick=()=>activeCase&&alert(activeCase.hint||'Sem dica cadastrada.'); $('finishBtn').onclick=finishSession; $('caseLoginBtn').onclick=()=>{ if($('casePassword').value===CASE_PASS){$('caseLogin').classList.add('hidden');$('casePanel').classList.remove('hidden');refreshCasePanel();}else alert('Senha incorreta.');}; $('managerLoginBtn').onclick=()=>{ if($('managerPassword').value===MANAGER_PASS){$('managerLogin').classList.add('hidden');$('managerPanel').classList.remove('hidden');refreshManager();}else alert('Senha incorreta.');}; $('caseLogoutBtn').onclick=()=>{$('casePanel').classList.add('hidden');$('caseLogin').classList.remove('hidden');}; $('managerLogoutBtn').onclick=()=>{$('managerPanel').classList.add('hidden');$('managerLogin').classList.remove('hidden');}; $('caseForm').onsubmit=submitCase; $('clearCaseForm').onclick=clearForm; ['casePanelSearch','casePanelProduct'].forEach(id=>$(id).oninput=refreshCasePanel); $('exportCasesJsonBtn').onclick=()=>download('casos_concredito.json',JSON.stringify(getCases(),null,2),'application/json'); $('exportCasesCsvBtn').onclick=()=>download('casos_concredito.csv',toCsv(getCases()),'text/csv'); $('importCasesBtn').onclick=()=>$('caseFileInput').click(); $('caseFileInput').onchange=e=>e.target.files[0]&&importCases(e.target.files[0]); $('exportResultsCsvBtn').onclick=()=>download('resultados_concredito.csv',toCsv(load(KEYS.results)),'text/csv'); $('noticeForm').onsubmit=e=>{e.preventDefault(); notify($('noticeTitle').value,$('noticeMessage').value); $('noticeForm').reset(); refreshManager();}; $('answerBox').addEventListener('keydown',e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendAnswer(); } }); $$('.tab').forEach(t=>t.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('activeTab')); t.classList.add('activeTab'); $$('.tabPanel').forEach(p=>p.classList.add('hidden')); $('manager'+t.dataset.tab[0].toUpperCase()+t.dataset.tab.slice(1)).classList.remove('hidden');}); $('notificationBtn').onclick=()=>{const ns=load(KEYS.notifications).map(n=>({...n,read:true})); save(KEYS.notifications,ns); refreshNotifications(); alert('Notificações marcadas como lidas.');}; }
+
+function scheduleTypingInterrupt(){
+ if(selectedMode!=='conversa' || !realistic || realistic.closed) return;
+ if(typingInterruptTimer) clearTimeout(typingInterruptTimer);
+ const runId=gameRunId;
+ const wait=9000+Math.random()*9000;
+ typingInterruptTimer=setTimeout(()=>{
+   if(runId!==gameRunId || selectedMode!=='conversa' || !realistic || realistic.closed) return;
+   if(($('answerBox').value||'').trim().length<12) return;
+   const msgs=realistic.persona?.id==='nervoso' ? ['VOCÊ AINDA ESTÁ AÍ?','ALGUÉM VAI RESOLVER?','????'] : realistic.persona?.id==='apressado' ? ['consegue ver rápido?','tô com pressa','qual o próximo passo?'] : realistic.persona?.id==='whatsapp' ? ['moço?','ta ai?','??'] : ['Você ainda está verificando?','Pode me dar um retorno?','Ainda estou aguardando.'];
+   addMsg('client', msgs[Math.floor(Math.random()*msgs.length)]);
+   realistic.patience=Math.max(0, realistic.patience-7);
+   realistic.events.push('Cliente interrompeu enquanto o colaborador digitava.');
+   realistic.lastClientAt=Date.now();
+   updateClientStatus();
+ }, wait);
+}
+
+function initEvents(){ if($('soundToggle')){ $('soundToggle').checked=soundsEnabled(); $('soundToggle').onchange=()=>localStorage.setItem(KEYS.sounds,$('soundToggle').checked?'on':'off'); } $('goHome').onclick=()=>{resetGameView(); show('homeScreen');}; $('openHowToBtn').onclick=()=>show('howToScreen'); $('closeHowTo').onclick=()=>show('homeScreen'); $('openCasesPanel').onclick=()=>show('casePanelScreen'); $('openManagerPanel').onclick=()=>show('managerScreen'); $$('.mode').forEach(b=>b.onclick=()=>{$$('.mode').forEach(x=>x.classList.remove('activeMode')); b.classList.add('activeMode'); selectedMode=b.dataset.mode;}); $('startBtn').onclick=startSession; $('newRandomCase').onclick=()=>{ resetGameView(); renderQueue(); }; $('sendAnswerBtn').onclick=sendAnswer; $('hintBtn').onclick=()=>activeCase&&alert(activeCase.hint||'Sem dica cadastrada.'); $('finishBtn').onclick=finishSession; $('caseLoginBtn').onclick=()=>{ if($('casePassword').value===CASE_PASS){$('caseLogin').classList.add('hidden');$('casePanel').classList.remove('hidden');refreshCasePanel();}else alert('Senha incorreta.');}; $('managerLoginBtn').onclick=()=>{ if($('managerPassword').value===MANAGER_PASS){$('managerLogin').classList.add('hidden');$('managerPanel').classList.remove('hidden');refreshManager();}else alert('Senha incorreta.');}; $('caseLogoutBtn').onclick=()=>{$('casePanel').classList.add('hidden');$('caseLogin').classList.remove('hidden');}; $('managerLogoutBtn').onclick=()=>{$('managerPanel').classList.add('hidden');$('managerLogin').classList.remove('hidden');}; $('caseForm').onsubmit=submitCase; $('clearCaseForm').onclick=clearForm; ['casePanelSearch','casePanelProduct'].forEach(id=>$(id).oninput=refreshCasePanel); $('exportCasesJsonBtn').onclick=()=>download('casos_concredito.json',JSON.stringify(getCases(),null,2),'application/json'); $('exportCasesCsvBtn').onclick=()=>download('casos_concredito.csv',toCsv(getCases()),'text/csv'); $('importCasesBtn').onclick=()=>$('caseFileInput').click(); $('caseFileInput').onchange=e=>e.target.files[0]&&importCases(e.target.files[0]); $('exportResultsCsvBtn').onclick=()=>download('resultados_concredito.csv',toCsv(load(KEYS.results)),'text/csv'); $('noticeForm').onsubmit=e=>{e.preventDefault(); notify($('noticeTitle').value,$('noticeMessage').value); $('noticeForm').reset(); refreshManager();}; $('answerBox').addEventListener('keydown',e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendAnswer(); } }); $('answerBox').addEventListener('input',()=>scheduleTypingInterrupt()); $$('.tab').forEach(t=>t.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('activeTab')); t.classList.add('activeTab'); $$('.tabPanel').forEach(p=>p.classList.add('hidden')); $('manager'+t.dataset.tab[0].toUpperCase()+t.dataset.tab.slice(1)).classList.remove('hidden');}); $('notificationBtn').onclick=()=>{const ns=load(KEYS.notifications).map(n=>({...n,read:true})); save(KEYS.notifications,ns); refreshNotifications(); alert('Notificações marcadas como lidas.');}; }
 fillSelects(); clearForm(); initEvents(); refreshAll();
