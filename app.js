@@ -1,6 +1,7 @@
 const $ = id => document.getElementById(id);
 const $$ = sel => [...document.querySelectorAll(sel)];
-const KEYS = { cases:'cc_v14_cases', audits:'cc_v14_audits', notifications:'cc_v14_notifications', results:'cc_v14_results', xp:'cc_v14_xp', sounds:'cc_v14_sounds' };
+const KEYS = { cases:'cc_v16_cases', audits:'cc_v14_audits', notifications:'cc_v14_notifications', results:'cc_v14_results', xp:'cc_v14_xp', sounds:'cc_v14_sounds' };
+const LEGACY_CASE_KEYS = ['cc_v14_cases','cc_v15_cases'];
 const CASE_PASS = 'casos2026';
 const MANAGER_PASS = 'gestor2026';
 let selectedMode = 'plantao', activeCase = null, currentSession = null, timer = null;
@@ -23,8 +24,55 @@ let gameRunId = 0; // controla sessões para evitar herdar estado/timeout de con
 function uid(prefix='id'){ return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`; }
 function load(key, fallback=[]){ try{return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));}catch{return fallback;} }
 function save(key, value){ localStorage.setItem(key, JSON.stringify(value)); }
-function getCases(){ const stored=load(KEYS.cases,null); if(stored) return stored; save(KEYS.cases, window.CONCREDITO_DEFAULT_CASES); return window.CONCREDITO_DEFAULT_CASES; }
-function setCases(cases){ save(KEYS.cases,cases); refreshAll(); }
+
+function normalizeDifficulty(value){
+  const raw = String(value || '').trim().toLowerCase();
+  if(['júnior','junior','facil','fácil','iniciante','baixo','baixa'].includes(raw)) return 'Júnior';
+  if(['pleno','medio','médio','intermediario','intermediário','normal'].includes(raw)) return 'Pleno';
+  if(['sênior','senior','dificil','difícil','avancado','avançado','alto','alta'].includes(raw)) return 'Sênior';
+  return 'Pleno';
+}
+function normalizeModes(modes){
+  const valid = ['plantao','conversa','treinamento'];
+  if(!Array.isArray(modes) || !modes.length) return valid;
+  const mapped = modes.map(m=>String(m||'').toLowerCase().trim()).map(m=>{
+    if(['plantão','plantao','fila','tempo'].includes(m)) return 'plantao';
+    if(['conversa','simulação realista','simulacao realista','realista','whatsapp'].includes(m)) return 'conversa';
+    if(['treinamento','treino','livre'].includes(m)) return 'treinamento';
+    return m;
+  }).filter(m=>valid.includes(m));
+  return mapped.length ? [...new Set(mapped)] : valid;
+}
+function normalizeCase(c){
+  return {
+    ...c,
+    id: c.id || uid('caso'),
+    status: (c.status || 'ativo').toLowerCase()==='inativo' ? 'inativo' : 'ativo',
+    difficulty: normalizeDifficulty(c.difficulty || c.dificuldade),
+    modes: normalizeModes(c.modes || c.modos),
+    tags: Array.isArray(c.tags) ? c.tags : String(c.tags||'').split(/[|,]/).map(x=>x.trim()).filter(Boolean),
+    history: Array.isArray(c.history) ? c.history : String(c.history||'').split('|').map(x=>x.trim()).filter(Boolean)
+  };
+}
+function defaultCases(){ return (window.CONCREDITO_DEFAULT_CASES || []).map(normalizeCase); }
+function getCases(){
+  let stored=load(KEYS.cases,null);
+  if(!stored){
+    for(const k of LEGACY_CASE_KEYS){ stored = load(k,null); if(stored && stored.length) break; }
+  }
+  if(!stored || !Array.isArray(stored) || !stored.length){
+    const defs=defaultCases(); save(KEYS.cases, defs); return defs;
+  }
+  const normalized=stored.map(normalizeCase);
+  const defaultIds=new Set(defaultCases().map(c=>c.id));
+  const existingIds=new Set(normalized.map(c=>c.id));
+  const missingDefaults=defaultCases().filter(c=>!existingIds.has(c.id));
+  const merged=[...normalized, ...missingDefaults];
+  save(KEYS.cases, merged);
+  return merged;
+}
+
+function setCases(cases){ save(KEYS.cases,(cases||[]).map(normalizeCase)); refreshAll(); }
 function audit(action, title){ const items=load(KEYS.audits); items.unshift({id:uid('audit'), action, title, by:'Equipe', at:new Date().toISOString()}); save(KEYS.audits,items); }
 function notify(title,message){ const items=load(KEYS.notifications); items.unshift({id:uid('not'), title, message, at:new Date().toISOString(), read:false}); save(KEYS.notifications,items); refreshNotifications(); }
 function soundsEnabled(){ return localStorage.getItem(KEYS.sounds) !== 'off'; }
@@ -70,7 +118,7 @@ function show(id){ $$('.screen').forEach(s=>s.classList.remove('active')); $(id)
 function productOptions(includeAll=false){ return `${includeAll?'<option value="todos">Todos os produtos</option>':''}${window.CONCREDITO_PRODUCTS.map(p=>`<option>${p}</option>`).join('')}`; }
 function fillSelects(){ ['caseProduct','casePanelProduct'].forEach(id=>$(id).innerHTML=productOptions(id!=='caseProduct')); $('caseCategory').innerHTML=window.CONCREDITO_CATEGORIES.map(x=>`<option>${x}</option>`).join(''); $('caseProfile').innerHTML=window.CONCREDITO_PROFILES.map(x=>`<option>${x}</option>`).join(''); }
 function activeCases(){ return getCases().filter(c=>c.status!=='inativo'); }
-function filteredCases(mode=selectedMode){ const diff=$('difficultyFilter').value; return activeCases().filter(c=>(!c.modes||c.modes.includes(mode)) && (diff==='todos'||c.difficulty===diff)); }
+function filteredCases(mode=selectedMode){ const diff=$('difficultyFilter').value; return activeCases().filter(c=>normalizeModes(c.modes).includes(mode) && (diff==='todos'||normalizeDifficulty(c.difficulty)===diff)); }
 function caseCard(c, actions=false){ return `<div class="caseCard" data-id="${c.id}"><b>${c.title}</b><small>${c.product} • ${c.category} • ${c.difficulty} • ${c.profile}</small><p>${c.message}</p><div class="tags">${(c.tags||[]).slice(0,5).map(t=>`<span>${t}</span>`).join('')}<span>${c.status||'ativo'}</span></div>${actions?`<div class="actions"><button class="secondary small editCase" data-id="${c.id}">Editar</button><button class="secondary small dupCase" data-id="${c.id}">Duplicar</button><button class="secondary small toggleCase" data-id="${c.id}">${c.status==='inativo'?'Ativar':'Inativar'}</button><button class="secondary small delCase" data-id="${c.id}">Excluir</button></div>`:''}</div>`; }
 function refreshHome(){ const results=load(KEYS.results); const xp=Number(localStorage.getItem(KEYS.xp)||0); const avg=results.length?Math.round(results.reduce((s,r)=>s+r.average,0)/results.length):0; $('homeTrainings').textContent=results.length; $('homeAvg').textContent=avg+'%'; $('homeCases').textContent=activeCases().length; $('xpText').textContent=`${xp} XP acumulado`; $('xpBar').style.width=Math.min(100,xp%100)+'%'; $('levelLabel').textContent='Nível '+(Math.floor(xp/100)+1); }
 function refreshNotifications(){ const ns=load(KEYS.notifications); const unread=ns.filter(n=>!n.read).length; $('notificationCount').textContent=unread; $('homeNotifications').textContent=ns.length; $('notificationList').innerHTML=ns.slice(0,5).map(n=>`<div class="notice"><b>${n.title}</b><p>${n.message}</p><small>${new Date(n.at).toLocaleString('pt-BR')}</small></div>`).join('') || '<p>Nenhuma notificação.</p>'; }
@@ -125,7 +173,11 @@ function adaptClientText(text){
  if(style==='caps') return text.toUpperCase().replace(/\.$/,'!!!');
  if(style==='zap') return text.replace(/Bom dia|Boa tarde|Olá|Ola/gi,'oi').replace(/você/gi,'vc').replace(/para/gi,'pra').replace(/estou/gi,'to');
  if(style==='curto') return text.length>90 ? text.split(/[.?!]/)[0]+'?' : text;
- if(style==='confuso') return text + (text.includes('?')?'':' Não entendi direito.');
+ if(style==='confuso') {
+   const finalPositive=/(agora ficou|certo, entendi|tá certo|ta certo|pode me orientar|próximo passo|proximo passo|como seguimos|seguir|obrigado|vou avaliar|pode fazer|vamos seguir|quero continuar|pode continuar)/i.test(text);
+   if(finalPositive) return text;
+   return text + (text.includes('?')?'':' Não entendi direito.');
+ }
  if(style==='idoso') return 'Meu filho, ' + text.charAt(0).toLowerCase() + text.slice(1);
  if(style==='emocional') return text + ' Preciso muito resolver isso.';
  return text;
@@ -307,12 +359,12 @@ function realisticClientReply(c,ev,answer){
  if(ev.flags.offensive) return {end:true, outcome:'desistiu', text:'Nossa... desse jeito eu não vou continuar. Obrigado.'};
  if(st.trust<=8) return {end:true, outcome:'desistiu', text:'Olha, eu não me senti seguro para seguir. Vou deixar para depois.'};
  if(st.patience<=0 || st.patience<=8) return {end:true, outcome:'perdeu paciência', text:'Acho que essa conversa não vai resolver meu problema. Vou encerrar por aqui.'};
- if(st.turns>=3 && st.trust>=82 && st.interest>=55) return {end:true, outcome:'aceitou', text:'Agora ficou claro. Pode me orientar no próximo passo para seguir.'};
- if(st.turns>=4 && st.trust>=70 && ev.total>=75) return {end:true, outcome:'concluído', text:'Certo, entendi melhor. Obrigado pelo atendimento.'};
+ if(st.turns>=3 && st.trust>=82 && st.interest>=55) return {end:true, outcome:'aceitou', text:'Agora ficou claro. Sim, pode seguir com a simulação/cadastro para mim.'};
+ if(st.turns>=4 && st.trust>=70 && ev.total>=75) return {end:true, outcome:'aceitou', text:'Certo, entendi melhor. Quero seguir com a proposta, pode continuar.'};
  if(st.turns>=4 && st.trust<38) return {end:true, outcome:'pediu atendimento humano', text:'Pode me passar para alguém que consiga me explicar melhor? Ainda não fiquei seguro.'};
- if(st.turns>=3 && (st.resolvedTopics||[]).length>=2 && st.trust>=68){ return {end:true, outcome:'concluído', text:'Agora ficou bem mais claro. Obrigado por explicar.'}; }
+ if(st.turns>=3 && (st.resolvedTopics||[]).length>=2 && st.trust>=68){ return {end:true, outcome:'aceitou', text:'Agora ficou bem mais claro. Sim, vamos seguir com a simulação/cadastro.'}; }
  if(st.turns>=7) {
-   if(st.trust>=60) return {end:true, outcome:'concluído', text:'Tá certo, já consegui entender. Vou avaliar e retorno se precisar.'};
+   if(st.trust>=60) return {end:true, outcome:'aceitou', text:'Tá certo, já consegui entender. Pode seguir com a proposta.'};
    return {end:true, outcome:'desistiu', text:'Vou pensar melhor e qualquer coisa volto depois.'};
  }
  if(ev.flags.badShort) return {text:pickReply(['Só isso? Eu ainda fiquei com dúvida. Pode me explicar melhor?','Mas assim ficou muito vago para mim. Pode detalhar melhor?','Não entendi direito. O que exatamente eu preciso fazer?'])};
@@ -384,7 +436,6 @@ function sendAnswer(){
      if(rep.end){
        realistic.closed=true;
        realistic.outcome=rep.outcome;
-       setTimeout(()=>{ if(runId === gameRunId) addMsg('client','Cliente saiu da conversa.'); },700);
        setTimeout(()=>{
          if(runId !== gameRunId) return;
          $('supervisorBox').innerHTML='<h3>Supervisor IA analisando atendimento...</h3><p>Aguarde enquanto o atendimento é avaliado.</p>';
@@ -459,4 +510,274 @@ function scheduleTypingInterrupt(){
 }
 
 function initEvents(){ if($('soundToggle')){ $('soundToggle').checked=soundsEnabled(); $('soundToggle').onchange=()=>localStorage.setItem(KEYS.sounds,$('soundToggle').checked?'on':'off'); } $('goHome').onclick=()=>{resetGameView(); show('homeScreen');}; $('openHowToBtn').onclick=()=>show('howToScreen'); $('closeHowTo').onclick=()=>show('homeScreen'); $('openCasesPanel').onclick=()=>show('casePanelScreen'); $('openManagerPanel').onclick=()=>show('managerScreen'); $$('.mode').forEach(b=>b.onclick=()=>{$$('.mode').forEach(x=>x.classList.remove('activeMode')); b.classList.add('activeMode'); selectedMode=b.dataset.mode;}); $('startBtn').onclick=startSession; $('newRandomCase').onclick=()=>{ resetGameView(); renderQueue(); }; $('sendAnswerBtn').onclick=sendAnswer; $('hintBtn').onclick=()=>activeCase&&alert(activeCase.hint||'Sem dica cadastrada.'); $('finishBtn').onclick=finishSession; $('caseLoginBtn').onclick=()=>{ if($('casePassword').value===CASE_PASS){$('caseLogin').classList.add('hidden');$('casePanel').classList.remove('hidden');refreshCasePanel();}else alert('Senha incorreta.');}; $('managerLoginBtn').onclick=()=>{ if($('managerPassword').value===MANAGER_PASS){$('managerLogin').classList.add('hidden');$('managerPanel').classList.remove('hidden');refreshManager();}else alert('Senha incorreta.');}; $('caseLogoutBtn').onclick=()=>{$('casePanel').classList.add('hidden');$('caseLogin').classList.remove('hidden');}; $('managerLogoutBtn').onclick=()=>{$('managerPanel').classList.add('hidden');$('managerLogin').classList.remove('hidden');}; $('caseForm').onsubmit=submitCase; $('clearCaseForm').onclick=clearForm; ['casePanelSearch','casePanelProduct'].forEach(id=>$(id).oninput=refreshCasePanel); $('exportCasesJsonBtn').onclick=()=>download('casos_concredito.json',JSON.stringify(getCases(),null,2),'application/json'); $('exportCasesCsvBtn').onclick=()=>download('casos_concredito.csv',toCsv(getCases()),'text/csv'); $('importCasesBtn').onclick=()=>$('caseFileInput').click(); $('caseFileInput').onchange=e=>e.target.files[0]&&importCases(e.target.files[0]); $('exportResultsCsvBtn').onclick=()=>download('resultados_concredito.csv',toCsv(load(KEYS.results)),'text/csv'); $('noticeForm').onsubmit=e=>{e.preventDefault(); notify($('noticeTitle').value,$('noticeMessage').value); $('noticeForm').reset(); refreshManager();}; $('answerBox').addEventListener('keydown',e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendAnswer(); } }); $('answerBox').addEventListener('input',()=>scheduleTypingInterrupt()); $$('.tab').forEach(t=>t.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('activeTab')); t.classList.add('activeTab'); $$('.tabPanel').forEach(p=>p.classList.add('hidden')); $('manager'+t.dataset.tab[0].toUpperCase()+t.dataset.tab.slice(1)).classList.remove('hidden');}); $('notificationBtn').onclick=()=>{const ns=load(KEYS.notifications).map(n=>({...n,read:true})); save(KEYS.notifications,ns); refreshNotifications(); alert('Notificações marcadas como lidas.');}; }
+
+/* =========================
+   V17 - PLANTÃO REALISTA
+   Status do atendente, fila dinâmica, clientes assíncronos,
+   cobranças por demora, botão Encerrar atendimento e exclusão de histórico.
+   ========================= */
+const V17 = {
+  live:false,
+  status:'online',
+  conversations:[],
+  activeId:null,
+  spawnTimer:null,
+  tickTimer:null,
+  shiftEndsAt:null,
+  lastSpawn:0,
+  statusSince:Date.now(),
+  savedAtEnd:false
+};
+function v17DifficultyConfig(){
+  const d=($('difficultyFilter')?.value||'Pleno');
+  if(d==='Júnior') return {max:2, spawnMin:18000, spawnMax:32000, patienceFactor:1.25, replyMin:5000, replyMax:18000};
+  if(d==='Sênior') return {max:6, spawnMin:6500, spawnMax:14000, patienceFactor:.70, replyMin:2500, replyMax:16000};
+  return {max:4, spawnMin:10000, spawnMax:22000, patienceFactor:.95, replyMin:3500, replyMax:18000};
+}
+function v17Esc(s){return String(s??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+function v17Now(){ return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+function v17EnsureUi(){
+  if(!$('attendanceStatusWrap')){
+    const hud=document.querySelector('.hud');
+    if(hud){
+      hud.insertAdjacentHTML('beforeend',`<div class="attendanceStatus" id="attendanceStatusWrap">
+        <span>Atendimento:</span>
+        <button class="statusBtn online" id="statusBtn">Online ●</button>
+        <div class="statusMenu hidden" id="statusMenu">
+          <button data-status="ausente"><i class="dot yellow"></i>Ausente</button>
+          <button data-status="ocupado"><i class="dot red"></i>Ocupado</button>
+          <button data-status="almoco"><i class="dot yellow"></i>Almoço</button>
+          <button data-status="online"><i class="dot green"></i>Online</button>
+        </div>
+      </div>`);
+    }
+  }
+  if(!$('closeConversationBtn')){
+    const actions=document.querySelector('#activeService .actions');
+    if(actions){ actions.insertAdjacentHTML('beforeend','<button class="secondary hidden" id="closeConversationBtn">Encerrar atendimento</button>'); }
+  }
+  if($('statusBtn')) $('statusBtn').onclick=()=> $('statusMenu')?.classList.toggle('hidden');
+  $$('#statusMenu button').forEach(b=>b.onclick=()=>v17SetStatus(b.dataset.status));
+  if($('closeConversationBtn')) $('closeConversationBtn').onclick=v17CloseActiveConversation;
+}
+function v17SetStatus(st){
+  V17.status=st; V17.statusSince=Date.now();
+  const labels={online:'Online',ocupado:'Ocupado',ausente:'Ausente',almoco:'Almoço'};
+  const cls={online:'online',ocupado:'ocupado',ausente:'ausente',almoco:'ausente'};
+  if($('statusBtn')){ $('statusBtn').className='statusBtn '+cls[st]; $('statusBtn').textContent=labels[st]+' ●'; }
+  $('statusMenu')?.classList.add('hidden');
+  notify('Status alterado',`Atendimento: ${labels[st]}.`);
+}
+function v17Pool(){
+  const diff=$('difficultyFilter')?.value||'todos';
+  return activeCases().filter(c=>{
+    const modes=normalizeModes(c.modes);
+    const okMode = modes.includes('conversa') || modes.includes('plantao');
+    const okDiff = diff==='todos' || normalizeDifficulty(c.difficulty)===diff;
+    return okMode && okDiff;
+  });
+}
+function v17StartLiveShift(){
+  v17EnsureUi();
+  V17.live=true; V17.conversations=[]; V17.activeId=null; V17.savedAtEnd=false; V17.lastSpawn=0; V17.shiftEndsAt=Date.now()+Number($('shiftTime')?.value||300)*1000;
+  v17SetStatus('online');
+  $('timerLabel').textContent='--:--';
+  $('caseQueue').innerHTML='<p class="hintText">Plantão iniciado. Novos clientes entrarão conforme seu status estiver Online.</p>';
+  $('emptyService').classList.remove('hidden'); $('activeService').classList.add('hidden');
+  clearInterval(timer); clearInterval(V17.tickTimer); clearTimeout(V17.spawnTimer);
+  V17.tickTimer=setInterval(v17Tick,1000);
+  v17ScheduleSpawn(1000);
+  updateHud();
+}
+function v17StopLiveShift(){ clearTimeout(V17.spawnTimer); clearInterval(V17.tickTimer); V17.live=false; V17.conversations.forEach(c=>{clearTimeout(c.replyTimer); clearTimeout(c.nagTimer);}); }
+function v17ScheduleSpawn(ms){ clearTimeout(V17.spawnTimer); V17.spawnTimer=setTimeout(v17MaybeSpawn,ms); }
+function v17MaybeSpawn(){
+  if(!V17.live || !currentSession) return;
+  const cfg=v17DifficultyConfig();
+  if(V17.status==='online' && V17.conversations.filter(c=>!c.closed).length<cfg.max){ v17AddCustomer(); }
+  const next=cfg.spawnMin+Math.random()*(cfg.spawnMax-cfg.spawnMin);
+  v17ScheduleSpawn(next);
+}
+function v17AddCustomer(){
+  const pool=v17Pool(); if(!pool.length) return;
+  const base={...pool[Math.floor(Math.random()*pool.length)]};
+  const conv={
+    id:uid('chat'), case:base, realistic:createRealisticState(base), messages:[], status:'awaiting_agent', unread:1,
+    createdAt:Date.now(), lastClientAt:Date.now(), lastAgentAt:null, closed:false, awaitingClose:false,
+    score:null, outcome:null, answerLog:[], replyTimer:null, nagTimer:null, botNoticeSent:false
+  };
+  const name=conv.realistic.personaName || clientName(base);
+  conv.name=name;
+  conv.messages.push({kind:'client', text:adaptClientText.call({} , base.message), at:Date.now()});
+  V17.conversations.unshift(conv);
+  notify('Novo cliente entrou',`${name} - ${base.product}`);
+  playSound('msg');
+  v17ScheduleNag(conv);
+  v17RenderQueue();
+}
+function v17RenderQueue(){
+  const active=V17.conversations.filter(c=>!c.closed);
+  $('caseQueue').innerHTML = active.map(c=>{
+    const wait = c.status==='awaiting_agent' ? Math.floor((Date.now()-c.lastClientAt)/1000) : 0;
+    const badge = c.awaitingClose?'⚫': c.status==='awaiting_agent' ? (wait>90?'🔴':'🟡') : '🔵';
+    const unread = c.unread?`<i class="unread">${c.unread}</i>`:'';
+    const last = c.messages[c.messages.length-1]?.text || '';
+    return `<div class="caseCard liveChat ${V17.activeId===c.id?'active':''} ${wait>90?'late':''}" data-id="${c.id}">
+      ${unread}<b>${badge} ${v17Esc(c.name)}</b><small>${v17Esc(c.case.product)} • ${v17Esc(c.case.difficulty)} • ${new Date(c.lastClientAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</small>
+      <p>${v17Esc(last).slice(0,86)}</p><div class="tags"><span>${c.status==='awaiting_agent'?'Aguardando você':c.awaitingClose?'Pronto para encerrar':'Aguardando cliente'}</span>${wait?`<span>${wait}s</span>`:''}</div>
+    </div>`;
+  }).join('') || '<p class="hintText">Nenhum cliente ativo. Fique Online para receber novos clientes.</p>';
+  $$('#caseQueue .liveChat').forEach(el=>el.onclick=()=>v17SelectConversation(el.dataset.id));
+}
+function v17SelectConversation(id){
+  const conv=V17.conversations.find(c=>c.id===id); if(!conv) return;
+  V17.activeId=id; activeCase=conv.case; realistic=conv.realistic; conv.unread=0;
+  $('emptyService').classList.add('hidden'); $('activeService').classList.remove('hidden');
+  $('clientName').textContent=conv.name; $('clientAvatar').textContent=conv.name[0]||'C';
+  $('clientMeta').textContent=`${activeCase.product} • ${activeCase.category} • ${activeCase.difficulty}`;
+  $('historyList').innerHTML=(activeCase.history||[]).map(h=>`<div class="historyLine">${v17Esc(h)}</div>`).join('')||'<p>Sem histórico.</p>';
+  $('chatBox').innerHTML=conv.messages.map(m=>`<div class="msg ${m.kind==='agent'?'agentMsg':'clientMsg'}"><small>${new Date(m.at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</small><br>${v17Esc(m.text)}</div>`).join('');
+  $('answerBox').value=''; $('supervisorBox').classList.toggle('hidden',!conv.awaitingClose); if(conv.supervisorHtml) $('supervisorBox').innerHTML=conv.supervisorHtml;
+  $('sendAnswerBtn').disabled=conv.awaitingClose || conv.status==='awaiting_client'; $('answerBox').disabled=conv.awaitingClose || conv.status==='awaiting_client';
+  $('closeConversationBtn')?.classList.toggle('hidden',!conv.awaitingClose);
+  updateClientStatus(); v17RenderQueue(); setTimeout(()=>$('answerBox')?.focus(),60);
+}
+function v17AddMessage(conv, kind, text){
+  conv.messages.push({kind,text,at:Date.now()});
+  if(kind==='client'){ conv.lastClientAt=Date.now(); conv.status='awaiting_agent'; if(V17.activeId!==conv.id) conv.unread++; notify(`${conv.name} enviou mensagem`,text.slice(0,70)); playSound('msg'); v17ScheduleNag(conv); }
+  if(V17.activeId===conv.id){
+    const oldActive=activeCase, oldReal=realistic; activeCase=conv.case; realistic=conv.realistic;
+    $('chatBox').insertAdjacentHTML('beforeend',`<div class="msg ${kind==='agent'?'agentMsg':'clientMsg'}"><small>${v17Now()}</small><br>${v17Esc(text)}</div>`); $('chatBox').scrollTop=$('chatBox').scrollHeight; updateClientStatus(); activeCase=oldActive; realistic=oldReal;
+  }
+  v17RenderQueue();
+}
+function v17ScheduleNag(conv){
+  clearTimeout(conv.nagTimer); if(conv.closed||conv.awaitingClose) return;
+  const cfg=v17DifficultyConfig();
+  const persona=conv.realistic.persona?.id||'tranquilo';
+  const base = persona==='nervoso'?22000:persona==='apressado'?25000:persona==='desesperado'?28000:persona==='idoso'?65000:42000;
+  conv.nagTimer=setTimeout(()=>{
+    if(!V17.live || conv.closed || conv.awaitingClose || conv.status!=='awaiting_agent') return;
+    const waited=Date.now()-conv.lastClientAt;
+    if(V17.status==='ausente' || V17.status==='almoco'){
+      if(!conv.botNoticeSent){ conv.botNoticeSent=true; const msg=V17.status==='almoco'?'Olá! Seu atendente está em horário de almoço no momento. Assim que retornar, continuará seu atendimento. Agradecemos pela compreensão.':'Olá! Seu atendente precisou se ausentar por alguns instantes, mas já já retorna para continuar seu atendimento. Agradecemos pela compreensão.'; v17AddMessage(conv,'agent','🤖 Bot: '+msg); }
+      return;
+    }
+    const nags={nervoso:['TÁ AÍ???','Que demora no atendimento.','Vou cancelar então.','Péssimo atendimento.'],apressado:['consegue ver rápido?','to esperando','qual retorno?'],whatsapp:['oi','??','moço?','ta ai?'],idoso:['Filho, acho que você esqueceu de mim.','Estou aguardando, meu filho.'],desesperado:['Pelo amor de Deus, me ajuda.','Preciso resolver isso hoje.']};
+    const arr=nags[persona]||['Oi, ainda estou aguardando.','Quando puder me responde, por favor.','Conseguiu verificar?'];
+    conv.realistic.patience=Math.max(0,conv.realistic.patience-10);
+    v17AddMessage(conv,'client',arr[Math.floor(Math.random()*arr.length)]);
+    if(waited>180000 && conv.realistic.patience<15){ v17CustomerAbandons(conv); } else v17ScheduleNag(conv);
+  }, base*cfg.patienceFactor);
+}
+function v17CustomerAbandons(conv){
+  if(conv.closed||conv.awaitingClose) return;
+  v17AddMessage(conv,'client','Como não tive retorno, vou encerrar por aqui.');
+  conv.awaitingClose=true; conv.outcome='desistiu por demora'; conv.score=25; conv.status='awaiting_close';
+  currentSession.solved++; currentSession.scores.push(25); currentSession.xp+=25;
+  currentSession.cases.push({caseId:conv.case.id,title:conv.case.title,score:25,answer:conv.answerLog.join(' | '),time:Math.round((Date.now()-conv.createdAt)/1000),outcome:conv.outcome});
+  conv.supervisorHtml='<h3>Supervisor IA • Nota 25%</h3><p>O cliente abandonou por demora no retorno. Priorize clientes com indicador vermelho e use Ocupado/Ausente quando necessário.</p>';
+  if(V17.activeId===conv.id) v17SelectConversation(conv.id);
+  updateHud();
+}
+function v17SendAnswer(){
+  const conv=V17.conversations.find(c=>c.id===V17.activeId); if(!conv) return;
+  const answer=$('answerBox').value.trim(); if(answer.length<2){alert('Digite uma resposta.'); return;}
+  clearTimeout(conv.nagTimer); conv.status='awaiting_client'; conv.lastAgentAt=Date.now(); conv.botNoticeSent=false;
+  const oldActive=activeCase, oldReal=realistic; activeCase=conv.case; realistic=conv.realistic;
+  v17AddMessage(conv,'agent',answer); conv.answerLog.push(answer); $('answerBox').value='';
+  const ev=evaluate(answer,conv.case); applyRealisticState(ev,answer);
+  activeCase=oldActive; realistic=oldReal;
+  $('sendAnswerBtn').disabled=true; $('answerBox').disabled=true;
+  const cfg=v17DifficultyConfig(); const delay=cfg.replyMin+Math.random()*(cfg.replyMax-cfg.replyMin);
+  clearTimeout(conv.replyTimer); conv.replyTimer=setTimeout(()=>{
+    if(conv.closed||conv.awaitingClose) return;
+    const oA=activeCase,oR=realistic; activeCase=conv.case; realistic=conv.realistic;
+    const rep=realisticClientReply(conv.case,ev,answer);
+    activeCase=oA; realistic=oR;
+    v17AddMessage(conv,'client',rep.text);
+    if(rep.end){ v17CompleteConversation(conv,ev,answer,rep.outcome); }
+    if(V17.activeId===conv.id && !conv.awaitingClose){ $('sendAnswerBtn').disabled=false; $('answerBox').disabled=false; $('answerBox').focus(); }
+  }, delay);
+  
+}
+function v17CompleteConversation(conv,ev,answer,outcome='concluído'){
+  if(conv.awaitingClose) return;
+  conv.awaitingClose=true; conv.outcome=outcome; conv.status='awaiting_close'; clearTimeout(conv.nagTimer); clearTimeout(conv.replyTimer);
+  let bonus=outcome==='aceitou'?15:outcome==='concluído'?5:outcome==='desistiu'?-20:0;
+  const score=Math.max(0,Math.min(100,ev.total+bonus)); conv.score=score;
+  currentSession.solved++; currentSession.scores.push(score); currentSession.xp+=score;
+  currentSession.cases.push({caseId:conv.case.id,title:conv.case.title,score,answer:conv.answerLog.join(' | '),time:Math.round((Date.now()-conv.createdAt)/1000),outcome});
+  const oA=activeCase,oR=realistic; activeCase=conv.case; realistic=conv.realistic;
+  conv.supervisorHtml=buildSupervisor(ev,answer,outcome,score)+`<div class="finishPanel"><h3>Atendimento finalizado</h3><p>Cliente não enviará mais mensagens. Clique em <b>Encerrar atendimento</b> para remover da fila.</p></div>`;
+  activeCase=oA; realistic=oR;
+  if(V17.activeId===conv.id){ v17SelectConversation(conv.id); }
+  updateHud(); playSound('finish');
+}
+function v17CloseActiveConversation(){
+  const conv=V17.conversations.find(c=>c.id===V17.activeId); if(!conv||!conv.awaitingClose) return;
+  conv.closed=true; clearTimeout(conv.nagTimer); clearTimeout(conv.replyTimer);
+  V17.activeId=null; activeCase=null; realistic=null;
+  $('emptyService').classList.remove('hidden'); $('activeService').classList.add('hidden');
+  notify('Atendimento encerrado',`${conv.name} saiu da fila.`);
+  v17RenderQueue(); updateHud();
+}
+function v17Tick(){
+  if(!V17.live||!currentSession) return;
+  const left=Math.max(0,Math.round((V17.shiftEndsAt-Date.now())/1000));
+  $('timerLabel').textContent=`${String(Math.floor(left/60)).padStart(2,'0')}:${String(left%60).padStart(2,'0')}`;
+  if(left<=0){ finishSession(); return; }
+  v17RenderQueue();
+}
+const _oldFilteredCases = filteredCases;
+filteredCases = function(mode=selectedMode){ if(mode==='conversa') return v17Pool(); return _oldFilteredCases(mode); };
+const _oldStartSession = startSession;
+startSession = function(){
+  const name=($('sellerName').value||'').trim(); if(!name){ alert('Informe seu nome para iniciar o treinamento.'); $('sellerName').focus(); return; }
+  resetGameView(); const pool=filteredCases(selectedMode); if(!pool.length){ alert('Não há casos ativos para esse filtro.'); return; }
+  currentSession={id:uid('sess'), mode:selectedMode, start:Date.now(), xp:0, solved:0, scores:[], cases:[]};
+  $('modeBadge').textContent=selectedMode==='plantao'?'Plantão':selectedMode==='conversa'?'Simulação Realista':'Treinamento'; $('gameTitle').textContent=$('modeBadge').textContent; show('gameScreen');
+  if(selectedMode==='conversa'){ v17StartLiveShift(); } else { renderQueue(); if(selectedMode==='plantao') startTimer(Number($('shiftTime').value)); else {$('timerLabel').textContent='Livre'; clearInterval(timer);} updateHud(); }
+};
+const _oldRenderQueue = renderQueue;
+renderQueue = function(){ if(selectedMode==='conversa'&&V17.live) return v17RenderQueue(); return _oldRenderQueue(); };
+const _oldSendAnswer = sendAnswer;
+sendAnswer = function(){ if(selectedMode==='conversa'&&V17.live) return v17SendAnswer(); return _oldSendAnswer(); };
+const _oldFinishSession = finishSession;
+finishSession = function(){
+  if(selectedMode==='conversa'&&V17.live) v17StopLiveShift();
+  return _oldFinishSession();
+};
+
+const _oldCompleteCaseV17 = completeCase;
+completeCase = function(ev,answer,outcome='concluído'){
+  _oldCompleteCaseV17(ev,answer,outcome);
+  if(selectedMode!=='conversa'){
+    if($('closeConversationBtn')){
+      $('closeConversationBtn').classList.remove('hidden');
+      $('closeConversationBtn').onclick=()=>{
+        if(activeCase){ const el=document.querySelector(`#caseQueue .caseCard[data-id=\"${activeCase.id}\"]`); if(el) el.remove(); }
+        activeCase=null; $('emptyService').classList.remove('hidden'); $('activeService').classList.add('hidden');
+      };
+    }
+  }
+};
+const _oldResetGameView = resetGameView;
+resetGameView = function(){ if(V17.live) v17StopLiveShift(); _oldResetGameView(); if($('closeConversationBtn')) $('closeConversationBtn').classList.add('hidden'); };
+const _oldRefreshManager = refreshManager;
+refreshManager = function(){
+  _oldRefreshManager();
+  const results=load(KEYS.results);
+  const bySeller={}; results.forEach(r=>{bySeller[r.name]=bySeller[r.name]||{count:0,avg:0,xp:0}; bySeller[r.name].count++; bySeller[r.name].avg+=r.average; bySeller[r.name].xp+=r.xp;});
+  if($('rankingList')) $('rankingList').innerHTML=Object.entries(bySeller).sort((a,b)=>b[1].xp-a[1].xp).map(([n,v],i)=>`<div class="caseCard"><b>${i+1}º ${v17Esc(n)}</b><small>${v.count} treinos • média ${Math.round(v.avg/v.count)}% • ${v.xp} XP</small><div class="actions"><button class="secondary small clearSellerHistory" data-name="${v17Esc(n)}">Excluir histórico</button></div></div>`).join('')||'<p>Sem resultados.</p>';
+  $$('.clearSellerHistory').forEach(b=>b.onclick=()=>{ const name=b.dataset.name; if(!confirm(`Excluir todo o histórico de ${name}?`)) return; save(KEYS.results, load(KEYS.results).filter(r=>r.name!==name)); notify('Histórico excluído',`Histórico de ${name} foi removido.`); refreshAll(); });
+};
+v17EnsureUi();
+if($('startBtn')) $('startBtn').onclick=startSession;
+if($('sendAnswerBtn')) $('sendAnswerBtn').onclick=sendAnswer;
+if($('finishBtn')) $('finishBtn').onclick=finishSession;
+if($('answerBox')) $('answerBox').addEventListener('keydown',e=>{ if(e.key==='Enter' && !e.shiftKey && selectedMode==='conversa' && V17.live){ e.preventDefault(); v17SendAnswer(); } });
+
 fillSelects(); clearForm(); initEvents(); refreshAll();
+// Reaplica eventos sobrescritos pela V17 após a inicialização original
+v17EnsureUi(); if($('startBtn')) $('startBtn').onclick=startSession; if($('sendAnswerBtn')) $('sendAnswerBtn').onclick=sendAnswer; if($('finishBtn')) $('finishBtn').onclick=finishSession; refreshAll();

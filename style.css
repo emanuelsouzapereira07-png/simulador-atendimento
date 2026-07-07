@@ -12,3 +12,8 @@
 .clientStatus span{display:block;color:var(--muted);font-size:11px;font-weight:900;text-transform:uppercase}
 .clientStatus b{display:block;color:var(--azul2);font-size:16px;margin-top:3px}
 @media(max-width:700px){.clientStatus{grid-template-columns:1fr}}
+
+/* V17 - Plantão Realista */
+.attendanceStatus{position:relative;background:#fff;border:1px solid var(--line);border-radius:18px;padding:10px 12px;display:flex;gap:8px;align-items:center;font-weight:900;color:var(--azul2)}
+.statusBtn{border:0;background:#EAF8FA;color:var(--azul);font-weight:900;border-radius:999px;padding:7px 12px;cursor:pointer}.statusBtn.online{color:#078b57}.statusBtn.ocupado{color:#d73b31}.statusBtn.ausente{color:#a88c00}
+.statusMenu{position:absolute;top:46px;right:0;z-index:20;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);border-radius:12px;padding:10px;display:grid;gap:5px;min-width:150px}.statusMenu button{border:0;background:#fff;text-align:left;padding:10px;border-radius:10px;cursor:pointer;font-weight:800;color:var(--text)}.statusMenu button:hover{background:#F1FAFC}.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px}.green{background:#11b86a}.red{background:#f0473d}.yellow{background:#e8d629}.liveChat{position:relative}.liveChat.late{border-color:#f0473d;background:#fff7f6}.unread{position:absolute;right:12px;top:12px;background:#F77916;color:#fff;border-radius:999px;min-width:22px;height:22px;display:grid;place-items:center;font-size:12px;font-style:normal}.msg small{opacity:.65;font-size:11px}.finishPanel{background:#eaf8fa;border:1px solid var(--line);padding:14px;border-radius:16px;margin-top:12px}.caseCard .actions{margin-top:10px}
