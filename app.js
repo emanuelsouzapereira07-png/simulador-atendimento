@@ -781,3 +781,214 @@ if($('answerBox')) $('answerBox').addEventListener('keydown',e=>{ if(e.key==='En
 fillSelects(); clearForm(); initEvents(); refreshAll();
 // Reaplica eventos sobrescritos pela V17 após a inicialização original
 v17EnsureUi(); if($('startBtn')) $('startBtn').onclick=startSession; if($('sendAnswerBtn')) $('sendAnswerBtn').onclick=sendAnswer; if($('finishBtn')) $('finishBtn').onclick=finishSession; refreshAll();
+
+/* =====================================================
+   V18 - CORREÇÕES SOLICITADAS
+   - IA menos genérica: resposta do cliente baseada na resposta do atendente
+   - Remove central lateral de notificações (mantém toasts e contador)
+   - Painel gestor com auditoria: clicar na pessoa, abrir histórico e conversa completa
+   ===================================================== */
+const V18 = { toastTimer:null };
+function v18Rand(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function v18Text(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function v18EnsureToast(){
+  if(!$('toastStack')) document.body.insertAdjacentHTML('beforeend','<div id="toastStack" class="toastStack"></div>');
+}
+function v18Toast(title,msg){
+  v18EnsureToast();
+  const id=uid('toast');
+  $('toastStack').insertAdjacentHTML('beforeend',`<div class="toast" id="${id}"><b>${v17Esc(title)}</b><p>${v17Esc(msg)}</p></div>`);
+  setTimeout(()=>$(id)?.remove(),4200);
+}
+// Notificações agora não ocupam a lateral; viram apenas contador + toast pequeno.
+notify = function(title,message){
+  const items=load(KEYS.notifications); items.unshift({id:uid('not'), title, message, at:new Date().toISOString(), read:false}); save(KEYS.notifications,items);
+  refreshNotifications(); v18Toast(title,message);
+};
+refreshNotifications = function(){
+  const ns=load(KEYS.notifications); const unread=ns.filter(n=>!n.read).length;
+  if($('notificationCount')) $('notificationCount').textContent=unread;
+  if($('homeNotifications')) $('homeNotifications').textContent=ns.length;
+  if($('notificationList')) $('notificationList').innerHTML='<p class="hintText">As notificações aparecem no canto da tela e no contador do sino.</p>';
+};
+function v18AnalyzeAnswer(answer, c){
+  const t=v18Text(answer), title=v18Text(c?.title), msg=v18Text(c?.message), ideal=v18Text(c?.ideal), all=title+' '+msg+' '+ideal;
+  return {
+    asksCpf:/\bcpf\b|documento|cadastro/.test(t),
+    explainsReason:/porque|motivo|ocorre|acontece|devido|por conta|analise|politica|taxa|banco|dataprev|ctps|qi/.test(t),
+    nextStep:/proximo passo|seguir|continuar|cadastro|simulacao|simular|assinar|autorizar|me confirma|me envie|vou verificar|posso verificar|vou consultar/.test(t),
+    empathy:/entendo|compreendo|imagino|fica tranquilo|vou te ajudar|sua preocupacao|faz sentido|lamento|sinto muito/.test(t),
+    security:/canal oficial|contrato|comprovante|sem taxa|nao cobramos|segur|cnpj|empresa|whatsapp oficial|verificar/.test(t),
+    objectionValue:/valor|baixo|taxa|juros|oferta|proposta|liberad|esperar|garantir|condicao/.test(t),
+    payment:/pagamento|pix|cair|deposito|conta|banco|chave/.test(t),
+    reprovado:/reprovad|politica interna|restricao|analise interna|banco nao aprovou/.test(t),
+    boleto:/boleto|parcela|mensalmente|demissao|saiu da empresa/.test(t),
+    quitacao:/quitacao|quitar|liquidacao|antecipar|saldo devedor/.test(t),
+    unsafe:/garanto|garantido|100%|certeza que cai|vai cair hoje|aprova com certeza|prometo/.test(t),
+    vague:t.length<45 || /^(ok|certo|sim|nao|aguarde|so aguardar|vou ver|verifiquei)$/i.test(answer.trim()),
+    topic: all.includes('valor')||all.includes('baixo')?'valor':all.includes('golpe')||all.includes('seguro')?'seguranca':all.includes('reprov')?'reprovado':all.includes('boleto')||all.includes('demissao')?'boleto':all.includes('quit')?'quitacao':all.includes('pagamento')||all.includes('pix')||all.includes('devolv')?'pagamento':'geral'
+  };
+}
+function v18ClientReplyByAnswer(c, ev, answer){
+  const st=realistic; const a=v18AnalyzeAnswer(answer,c); const persona=st?.persona?.id||'tranquilo';
+  if(ev.flags.offensive) return {end:true,outcome:'desistiu',text:v18Rand(['Nossa... desse jeito eu não vou continuar.','Achei essa resposta bem inadequada. Vou encerrar por aqui.'])};
+  if(a.unsafe) return {text:v18Rand(['Você consegue mesmo garantir isso? Tenho medo de depois dar problema.','Mas se não cair hoje como você falou, o que acontece?','Prefiro que você me explique sem promessa, para eu não me frustrar depois.'])};
+  if(a.vague || ev.flags.badShort) return {text:v18Rand(['Não entendi direito. Pode me explicar melhor o que eu preciso fazer?','Ficou muito curto para mim. Qual é o próximo passo exatamente?','Ainda fiquei com dúvida, você pode detalhar melhor?'])};
+  if(ev.flags.insecure) return {text:v18Rand(['Assim eu fico mais inseguro ainda. Você consegue verificar certinho antes de eu seguir?','Entendi, mas preciso de uma orientação mais segura.','Se a informação não está clara, prefiro não assinar ainda.'])};
+  // Respostas específicas conforme o assunto e o que o atendente falou
+  if(a.topic==='valor'){
+    if(a.explainsReason && a.nextStep && a.empathy) return {end: st.turns>=2 || ev.total>=82, outcome:'aceitou', text:v18Rand(['Agora fez sentido. Se a condição pode mudar, pode seguir com a simulação/cadastro para mim.','Entendi melhor. Então vamos aproveitar essa condição e seguir.','Tá, agora ficou claro. Pode continuar comigo.'])};
+    if(a.explainsReason && !a.nextStep) return {text:v18Rand(['Entendi o motivo, mas o que eu faço agora?','Certo, e para seguir eu preciso te mandar o quê?','Tá, mas você consegue continuar essa simulação comigo?'])};
+    return {text:v18Rand(['Mas por que esse valor pode mudar?','Não entendi o que a taxa tem a ver com isso.','Será que não compensa esperar mais um pouco?'])};
+  }
+  if(a.topic==='seguranca'){
+    if(a.security && a.nextStep) return {text:v18Rand(['Certo, ficando no canal oficial eu fico mais tranquilo. Qual dado você precisa para verificar?','Entendi. Então posso seguir por aqui mesmo?','Tá bom, e vocês não cobram nenhuma taxa antes, certo?'])};
+    return {text:v18Rand(['Como eu sei que estou falando com a empresa certa?','Vocês cobram alguma taxa antes de liberar?','Tem algum contrato ou comprovante para acompanhar?'])};
+  }
+  if(a.topic==='pagamento'){
+    if(a.payment && a.nextStep) return {text:v18Rand(['Certo. Vou te passar os dados para verificar o pagamento então.','Entendi. Você consegue conferir pelo meu CPF?','Tá, se foi devolvido, como faço para trocar a conta?'])};
+    return {text:v18Rand(['Mas o dinheiro ainda não caiu. Como eu acompanho isso?','E se voltou o pagamento, o que eu preciso mandar?','Qual prazo real para resolver isso?'])};
+  }
+  if(a.topic==='reprovado'){
+    if(a.reprovado && a.nextStep) return {text:v18Rand(['Entendi. Então tenta por outro banco para mim, por favor.','Tá, se esse banco não aprovou, podemos tentar outra opção?','Certo. Eu tenho chance em outro banco?'])};
+    return {text:v18Rand(['Mas eu assinei o contrato, como foi reprovado?','Não entendi o motivo da reprovação.','Tem algo que eu possa fazer para tentar novamente?'])};
+  }
+  if(a.topic==='boleto'){
+    if(a.boleto && a.nextStep) return {text:v18Rand(['Certo, então posso solicitar o boleto mensalmente com vocês.','Entendi. Quando vencer a próxima parcela eu chamo vocês.','Tá bom, obrigado por explicar.'])};
+    return {text:v18Rand(['Como eu faço para pagar agora que saí da empresa?','Vai descontar da minha rescisão ou preciso pedir boleto?','Onde solicito esse boleto?'])};
+  }
+  if(a.topic==='quitacao'){
+    if(a.quitacao && a.nextStep) return {text:v18Rand(['Entendi. Quero o boleto de quitação então.','Certo, pode solicitar o valor para mim?','Tá bom. E qual o prazo para baixa depois que eu pagar?'])};
+    return {text:v18Rand(['Eu quero quitar tudo, não só antecipar parcela. Como faço?','Qual é a diferença entre quitar e antecipar?','Depois que pagar, quando dá baixa?'])};
+  }
+  if(a.empathy && a.explainsReason && a.nextStep && ev.total>=80) return {end:st.turns>=2, outcome:'aceitou', text:v18Rand(['Agora ficou claro. Pode seguir com o atendimento para mim.','Entendi, obrigado por explicar. Pode continuar.','Tá certo, vamos seguir então.'])};
+  if(a.nextStep && ev.total>=70) return {text:v18Rand(['Certo, vou te mandar. Depois disso o que acontece?','Beleza. Qual informação você precisa primeiro?','Tá, e você consegue resolver por aqui mesmo?'])};
+  if(!a.empathy && (persona==='nervoso'||persona==='desesperado')) return {text:v18Rand(['Você está sendo muito direto. Eu estou preocupado com isso.','Tá, mas eu preciso que alguém realmente me ajude.','Eu entendi, mas ainda estou nervoso com essa situação.'])};
+  return {text:v18Rand(['Entendi melhor. Qual seria o próximo passo?','Tá, agora ficou mais claro. Como seguimos?','Certo. O que você precisa de mim agora?'])};
+}
+// Substitui o roteirizador antigo por uma resposta com análise da resposta dada.
+realisticClientReply = function(c,ev,answer){
+  const st=realistic;
+  if(!st || st.closed) return {end:true,outcome:'encerrado',text:'Atendimento encerrado.'};
+  if(st.trust<=8) return {end:true,outcome:'desistiu',text:v18Rand(['Olha, eu não me senti seguro para seguir. Vou deixar para depois.','Ainda não me passou segurança. Prefiro encerrar por enquanto.'])};
+  if(st.patience<=8) return {end:true,outcome:'perdeu paciência',text:v18Rand(['Acho que essa conversa não vai resolver meu problema. Vou encerrar por aqui.','Demorou bastante e eu acabei perdendo a confiança. Vou deixar para depois.'])};
+  const reply=v18ClientReplyByAnswer(c,ev,answer);
+  if(reply.end) return reply;
+  if(st.turns>=6){
+    if(st.trust>=60 && ev.total>=70) return {end:true,outcome:'aceitou',text:v18Rand(['Tá certo, já consegui entender. Pode seguir com a proposta.','Agora ficou claro. Vamos seguir.'])};
+    return {end:true,outcome:'desistiu',text:v18Rand(['Vou pensar melhor e qualquer coisa volto depois.','Ainda fiquei em dúvida, vou deixar para outro momento.'])};
+  }
+  return reply;
+};
+
+function v18TranscriptFromDom(){
+  return $$('#chatBox .msg').map(m=>({kind:m.classList.contains('agentMsg')?'agent':'client', text:m.innerText.replace(/^\d{2}:\d{2}\s*/,'').trim(), at:new Date().toISOString()}));
+}
+function v18CaseDetailPayload(extra={}){
+  const st=realistic;
+  return {
+    conversation: extra.conversation || v18TranscriptFromDom(),
+    analyses: st?.turnAnalyses || [],
+    events: st?.events || [],
+    memory: st?.memory || {},
+    supervisorHtml: $('supervisorBox')?.innerHTML || extra.supervisorHtml || '',
+    caseData: activeCase ? {...activeCase} : extra.caseData,
+    outcome: extra.outcome,
+    startedAt: extra.startedAt || currentSession?.start || Date.now(),
+    finishedAt: Date.now()
+  };
+}
+// Reescreve conclusão de caso normal para salvar conversa completa.
+completeCase = function(ev,answer,outcome='concluído'){
+ if(activeCase && activeCase._completed) return;
+ if(activeCase) activeCase._completed=true;
+ currentSession.solved++;
+ let bonus=0; if(outcome==='aceitou') bonus=15; if(outcome==='concluído') bonus=5; if(outcome==='pediu atendimento humano') bonus=-12; if(outcome==='perdeu paciência') bonus=-18; if(outcome==='desistiu') bonus=-20;
+ const finalScore=Math.max(0,Math.min(100,ev.total+bonus)); currentSession.xp+=finalScore; currentSession.scores.push(finalScore);
+ const supervisor = selectedMode==='conversa' ? buildSupervisor(ev,answer,outcome,finalScore) : `<h3>Supervisor IA • Nota ${finalScore}%</h3><p><b>Desfecho:</b> ${outcome}.</p><p>${ev.feedback}</p><div class="scoreGrid">${Object.entries(ev.metrics).map(([k,v])=>`<div><span>${k}</span><b>${Math.round(v)}%</b></div>`).join('')}</div><h3>Resposta ideal</h3><p>${activeCase.ideal||'Sem resposta ideal cadastrada.'}</p><p><b>Ponto de melhoria:</b> ${ev.improvements}</p>`;
+ $('supervisorBox').innerHTML=supervisor; $('supervisorBox').classList.remove('hidden');
+ currentSession.cases.push({caseId:activeCase.id,title:activeCase.title,score:finalScore,answer,time:Math.round((Date.now()-currentSession.start)/1000),outcome,...v18CaseDetailPayload({outcome,supervisorHtml:supervisor})});
+ playSound('finish');
+ if(selectedMode==='conversa'){ $('sendAnswerBtn').disabled=true; $('answerBox').disabled=true; $('answerBox').placeholder='Atendimento finalizado. Clique em Encerrar atendimento.'; }
+ else { $('sendAnswerBtn').disabled=false; $('answerBox').disabled=false; }
+ if($('closeConversationBtn')){ $('closeConversationBtn').classList.remove('hidden'); $('closeConversationBtn').onclick=()=>{ if(activeCase){ const el=document.querySelector(`#caseQueue .caseCard[data-id="${activeCase.id}"]`); if(el) el.remove(); } activeCase=null; $('emptyService').classList.remove('hidden'); $('activeService').classList.add('hidden'); }; }
+ updateHud();
+};
+// V17: salva cada conversa realista completa no histórico.
+v17CompleteConversation = function(conv,ev,answer,outcome='concluído'){
+  if(conv.awaitingClose) return;
+  conv.awaitingClose=true; conv.outcome=outcome; conv.status='awaiting_close'; clearTimeout(conv.nagTimer); clearTimeout(conv.replyTimer);
+  let bonus=outcome==='aceitou'?15:outcome==='concluído'?5:outcome==='desistiu'?-20:0;
+  const score=Math.max(0,Math.min(100,ev.total+bonus)); conv.score=score;
+  currentSession.solved++; currentSession.scores.push(score); currentSession.xp+=score;
+  const oA=activeCase,oR=realistic; activeCase=conv.case; realistic=conv.realistic;
+  conv.supervisorHtml=buildSupervisor(ev,answer,outcome,score)+`<div class="finishPanel"><h3>Atendimento finalizado</h3><p>Cliente não enviará mais mensagens. Clique em <b>Encerrar atendimento</b> para remover da fila.</p></div>`;
+  currentSession.cases.push({caseId:conv.case.id,title:conv.case.title,score,answer:conv.answerLog.join(' | '),time:Math.round((Date.now()-conv.createdAt)/1000),outcome,conversation:conv.messages,analyses:conv.realistic.turnAnalyses||[],events:conv.realistic.events||[],memory:conv.realistic.memory||{},supervisorHtml:conv.supervisorHtml,caseData:{...conv.case},startedAt:conv.createdAt,finishedAt:Date.now(),clientName:conv.name});
+  activeCase=oA; realistic=oR;
+  if(V17.activeId===conv.id){ v17SelectConversation(conv.id); }
+  updateHud(); playSound('finish');
+};
+v17CustomerAbandons = function(conv){
+  if(conv.closed||conv.awaitingClose) return;
+  v17AddMessage(conv,'client','Como não tive retorno, vou encerrar por aqui.');
+  conv.awaitingClose=true; conv.outcome='desistiu por demora'; conv.score=25; conv.status='awaiting_close';
+  currentSession.solved++; currentSession.scores.push(25); currentSession.xp+=25;
+  conv.supervisorHtml='<h3>Supervisor IA • Nota 25%</h3><p>O cliente abandonou por demora no retorno. Priorize clientes com indicador vermelho e use Ocupado/Ausente quando necessário.</p>';
+  currentSession.cases.push({caseId:conv.case.id,title:conv.case.title,score:25,answer:conv.answerLog.join(' | '),time:Math.round((Date.now()-conv.createdAt)/1000),outcome:conv.outcome,conversation:conv.messages,analyses:conv.realistic.turnAnalyses||[],events:conv.realistic.events||[],memory:conv.realistic.memory||{},supervisorHtml:conv.supervisorHtml,caseData:{...conv.case},startedAt:conv.createdAt,finishedAt:Date.now(),clientName:conv.name});
+  if(V17.activeId===conv.id) v17SelectConversation(conv.id);
+  updateHud();
+};
+function v18EnsureManagerModal(){
+  if(!$('managerAuditModal')) document.body.insertAdjacentHTML('beforeend',`<div class="modalOverlay hidden" id="managerAuditModal"><div class="modalCard"><div class="panelTitle"><div><span class="badge">Auditoria do Gestor</span><h2 id="modalTitle">Histórico</h2></div><button class="secondary" id="closeAuditModal">Fechar</button></div><div id="modalBody"></div></div></div>`);
+  $('closeAuditModal').onclick=()=>$('managerAuditModal').classList.add('hidden');
+}
+function v18OpenSeller(name){
+  v18EnsureManagerModal();
+  const rows=load(KEYS.results).filter(r=>r.name===name);
+  $('modalTitle').textContent=`Histórico de ${name}`;
+  $('modalBody').innerHTML=`<div class="cardsList">${rows.map(r=>`<div class="caseCard"><b>${v17Esc(r.mode)} • ${r.average}%</b><small>${new Date(r.at).toLocaleString('pt-BR')} • ${r.solved||0} caso(s) • ${r.xp||0} XP</small><p>${v17Esc(r.team||'')}</p><div class="actions"><button class="primary small openTraining" data-id="${r.id}">Abrir treinamento</button><button class="secondary small deleteTraining" data-id="${r.id}">Excluir treinamento</button></div></div>`).join('')||'<p>Nenhum treinamento encontrado.</p>'}</div>`;
+  $$('.openTraining').forEach(b=>b.onclick=()=>v18OpenTraining(b.dataset.id));
+  $$('.deleteTraining').forEach(b=>b.onclick=()=>{ if(!confirm('Excluir apenas este treinamento?')) return; save(KEYS.results,load(KEYS.results).filter(r=>r.id!==b.dataset.id)); refreshAll(); v18OpenSeller(name); });
+  $('managerAuditModal').classList.remove('hidden');
+}
+function v18OpenTraining(id){
+  const r=load(KEYS.results).find(x=>x.id===id); if(!r) return;
+  $('modalTitle').textContent=`Treinamento • ${r.name} • ${r.average}%`;
+  $('modalBody').innerHTML=`<div class="auditSummary"><div><span>Modo</span><b>${v17Esc(r.mode)}</b></div><div><span>Data</span><b>${new Date(r.at).toLocaleString('pt-BR')}</b></div><div><span>Média</span><b>${r.average}%</b></div><div><span>Resolvidos</span><b>${r.solved||0}</b></div></div><h3>Atendimentos deste treino</h3><div class="cardsList">${(r.cases||[]).map((c,i)=>`<div class="caseCard"><b>${i+1}. ${v17Esc(c.title||'Caso')}</b><small>Nota ${c.score}% • ${v17Esc(c.outcome||'concluído')} • ${c.time||0}s</small><div class="actions"><button class="primary small openConversation" data-index="${i}">Ver conversa</button></div></div>`).join('')||'<p>Sem casos gravados.</p>'}</div><div class="actions"><button class="secondary" id="backSellerHistory">Voltar ao atendente</button></div>`;
+  $$('.openConversation').forEach(b=>b.onclick=()=>v18OpenConversation(id,Number(b.dataset.index)));
+  $('backSellerHistory').onclick=()=>v18OpenSeller(r.name);
+}
+function v18OpenConversation(resultId,index){
+  const r=load(KEYS.results).find(x=>x.id===resultId); if(!r) return; const c=(r.cases||[])[index]; if(!c) return;
+  const msgs=(c.conversation||[]).map(m=>`<div class="msg ${m.kind==='agent'?'agentMsg':'clientMsg'}"><small>${m.at?new Date(m.at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):''}</small><br>${v17Esc(m.text||'')}</div>`).join('')||'<p>Conversa completa não foi gravada nesta versão antiga.</p>';
+  const analyses=(c.analyses||[]).map(a=>`<div class="caseCard"><b>Mensagem ${a.turn} • Nota ${a.score}%</b><p><b>Resposta:</b> ${v17Esc(a.answer||'')}</p>${(a.entries||[]).length?`<ul>${a.entries.map(e=>`<li><b>${v17Esc(e.metric)}:</b> ${v17Esc(e.reason)}</li>`).join('')}</ul>`:'<p>Sem erro crítico registrado.</p>'}<p><b>Alternativa:</b> ${v17Esc(a.alternative||'')}</p></div>`).join('');
+  const timeline=(c.events||[]).map(e=>`<li>${v17Esc(e)}</li>`).join('');
+  $('modalTitle').textContent=`Conversa • ${c.clientName||'Cliente'} • ${c.score}%`;
+  $('modalBody').innerHTML=`<div class="auditSummary"><div><span>Caso</span><b>${v17Esc(c.title||'')}</b></div><div><span>Resultado</span><b>${v17Esc(c.outcome||'')}</b></div><div><span>Tempo</span><b>${c.time||0}s</b></div><div><span>Nota</span><b>${c.score}%</b></div></div><h3>Conversa completa</h3><div class="auditChat">${msgs}</div><h3>Linha do tempo</h3><ul class="timeline">${timeline||'<li>Sem eventos registrados.</li>'}</ul><h3>Análise das respostas</h3><div class="cardsList compact">${analyses||'<p>Sem análise detalhada nesta versão antiga.</p>'}</div><h3>Supervisor IA</h3><div class="supervisor">${c.supervisorHtml||'<p>Sem relatório salvo.</p>'}</div><div class="actions"><button class="secondary" id="backTraining">Voltar ao treinamento</button></div>`;
+  $('backTraining').onclick=()=>v18OpenTraining(resultId);
+}
+refreshManager = function(){
+  const results=load(KEYS.results), cases=getCases(); const avg=results.length?Math.round(results.reduce((s,r)=>s+r.average,0)/results.length):0; const solved=results.reduce((s,r)=>s+(r.solved||0),0);
+  if($('managerCards')) $('managerCards').innerHTML=`<div><span>Treinamentos</span><b>${results.length}</b></div><div><span>Média geral</span><b>${avg}%</b></div><div><span>Casos ativos</span><b>${activeCases().length}</b></div><div><span>Atendimentos</span><b>${solved}</b></div>`;
+  const bySeller={}; results.forEach(r=>{bySeller[r.name]=bySeller[r.name]||{count:0,avg:0,xp:0}; bySeller[r.name].count++; bySeller[r.name].avg+=r.average; bySeller[r.name].xp+=r.xp;});
+  if($('rankingList')) $('rankingList').innerHTML=Object.entries(bySeller).sort((a,b)=>b[1].xp-a[1].xp).map(([n,v],i)=>`<div class="caseCard sellerCard" data-name="${v17Esc(n)}"><b>${i+1}º ${v17Esc(n)}</b><small>${v.count} treinos • média ${Math.round(v.avg/v.count)}% • ${v.xp} XP</small><div class="actions"><button class="primary small openSellerHistory" data-name="${v17Esc(n)}">Ver histórico</button><button class="secondary small clearSellerHistory" data-name="${v17Esc(n)}">Excluir histórico</button></div></div>`).join('')||'<p>Sem resultados.</p>';
+  if($('resultsList')) $('resultsList').innerHTML=results.slice(0,8).map(r=>`<div class="caseCard"><b>${v17Esc(r.name)}<small>${v17Esc(r.mode)} • ${r.average}% • ${new Date(r.at).toLocaleString('pt-BR')}</small></b><p>${r.solved} caso(s) resolvido(s)</p><div class="actions"><button class="secondary small openTraining" data-id="${r.id}">Abrir</button></div></div>`).join('')||'<p>Sem resultados.</p>';
+  const byCase={}; results.flatMap(r=>r.cases||[]).forEach(c=>{byCase[c.title]=byCase[c.title]||{count:0,avg:0}; byCase[c.title].count++; byCase[c.title].avg+=c.score;});
+  if($('caseStatsList')) $('caseStatsList').innerHTML=Object.entries(byCase).map(([t,v])=>`<div class="caseCard"><b>${v17Esc(t)}</b><small>${v.count} atendimentos • média ${Math.round(v.avg/v.count)}%</small></div>`).join('')||'<p>Sem dados.</p>';
+  if($('auditList')) $('auditList').innerHTML=load(KEYS.audits).map(a=>`<div class="caseCard"><b>${v17Esc(a.action)}: ${v17Esc(a.title)}</b><small>${v17Esc(a.by)} • ${new Date(a.at).toLocaleString('pt-BR')}</small></div>`).join('')||'<p>Sem alterações.</p>';
+  if($('managerNoticeList')) $('managerNoticeList').innerHTML='<p class="hintText">A central lateral foi removida. Use o sino e os avisos no canto da tela.</p>';
+  $$('.openSellerHistory').forEach(b=>b.onclick=e=>{ e.stopPropagation(); v18OpenSeller(b.dataset.name); });
+  $$('.sellerCard').forEach(card=>card.onclick=e=>{ if(e.target.tagName!=='BUTTON') v18OpenSeller(card.dataset.name); });
+  $$('.clearSellerHistory').forEach(b=>b.onclick=e=>{ e.stopPropagation(); const name=b.dataset.name; if(!confirm(`Excluir todo o histórico de ${name}?`)) return; save(KEYS.results, load(KEYS.results).filter(r=>r.name!==name)); notify('Histórico excluído',`Histórico de ${name} foi removido.`); refreshAll(); });
+  $$('#resultsList .openTraining').forEach(b=>b.onclick=()=>v18OpenTraining(b.dataset.id));
+};
+finishSession = function(){
+ if(!currentSession)return; const name=($('sellerName').value||'').trim(); if(!name){ alert('Informe seu nome para salvar o treinamento.'); $('sellerName').focus(); show('homeScreen'); return; }
+ clearIdleTimers(); clearInterval(timer); if(V17.live) v17StopLiveShift();
+ const avg=currentSession.scores.length?Math.round(currentSession.scores.reduce((a,b)=>a+b,0)/currentSession.scores.length):0;
+ const result={id:currentSession.id,name,team:$('sellerTeam').value,mode:$('modeBadge').textContent,average:avg,xp:currentSession.xp,solved:currentSession.solved,cases:currentSession.cases,startedAt:currentSession.start,at:new Date().toISOString()};
+ const results=load(KEYS.results); results.unshift(result); save(KEYS.results,results); localStorage.setItem(KEYS.xp,Number(localStorage.getItem(KEYS.xp)||0)+currentSession.xp);
+ notify('Treinamento finalizado',`${result.name} finalizou ${result.mode} com média ${avg}%.`); currentSession=null; alert(`Sessão finalizada! Média: ${avg}%`); show('homeScreen'); refreshAll();
+};
+// Garante eventos finais após sobrescritas
+v18EnsureToast(); v18EnsureManagerModal(); refreshAll();
