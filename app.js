@@ -418,7 +418,7 @@ function sendAnswer(){
  if(realistic && realistic.closed) return;
  if(selectedMode==='conversa') clearIdleTimers();
  const answer=$('answerBox').value.trim();
- if(answer.length<2){alert('Digite uma resposta.'); return;}
+ if(answer.length<2){ v19ShowValidation('Digite uma resposta antes de enviar.'); return;}
  addMsg('agent',answer);
  const ev=evaluate(answer,activeCase);
  $('answerBox').value='';
@@ -663,10 +663,19 @@ function v17ScheduleNag(conv){
       if(!conv.botNoticeSent){ conv.botNoticeSent=true; const msg=V17.status==='almoco'?'Olá! Seu atendente está em horário de almoço no momento. Assim que retornar, continuará seu atendimento. Agradecemos pela compreensão.':'Olá! Seu atendente precisou se ausentar por alguns instantes, mas já já retorna para continuar seu atendimento. Agradecemos pela compreensão.'; v17AddMessage(conv,'agent','🤖 Bot: '+msg); }
       return;
     }
-    const nags={nervoso:['TÁ AÍ???','Que demora no atendimento.','Vou cancelar então.','Péssimo atendimento.'],apressado:['consegue ver rápido?','to esperando','qual retorno?'],whatsapp:['oi','??','moço?','ta ai?'],idoso:['Filho, acho que você esqueceu de mim.','Estou aguardando, meu filho.'],desesperado:['Pelo amor de Deus, me ajuda.','Preciso resolver isso hoje.']};
-    const arr=nags[persona]||['Oi, ainda estou aguardando.','Quando puder me responde, por favor.','Conseguiu verificar?'];
+    const nags={
+      nervoso:['TÁ AÍ???','Que demora no atendimento.','Vou cancelar então.','Ainda estou esperando uma solução.','Isso está demorando demais.'],
+      apressado:['Consegue ver rápido?','Estou esperando.','Tem algum retorno?','Preciso resolver logo.','Pode me responder?'],
+      whatsapp:['oi','??','moço?','ta ai?','conseguiu ver?','e aí?'],
+      idoso:['Oi, ainda estou aguardando.','Você conseguiu verificar para mim?','Quando puder, me responde por favor.','Ainda estou aqui esperando.','Tudo bem por aí?','Conseguiu olhar para mim?'],
+      desesperado:['Pelo amor de Deus, me ajuda.','Preciso resolver isso hoje.','Estou muito preocupado com isso.','Conseguiu ver meu caso?','Não posso ficar sem resposta.']
+    };
+    let arr=nags[persona]||['Oi, ainda estou aguardando.','Quando puder me responde, por favor.','Conseguiu verificar?','Tudo certo por aí?'];
+    arr=arr.filter(x=>x!==conv.lastNagText);
+    const msg=arr[Math.floor(Math.random()*arr.length)] || 'Oi, ainda estou aguardando.';
+    conv.lastNagText=msg;
     conv.realistic.patience=Math.max(0,conv.realistic.patience-10);
-    v17AddMessage(conv,'client',arr[Math.floor(Math.random()*arr.length)]);
+    v17AddMessage(conv,'client',msg);
     if(waited>180000 && conv.realistic.patience<15){ v17CustomerAbandons(conv); } else v17ScheduleNag(conv);
   }, base*cfg.patienceFactor);
 }
@@ -682,7 +691,7 @@ function v17CustomerAbandons(conv){
 }
 function v17SendAnswer(){
   const conv=V17.conversations.find(c=>c.id===V17.activeId); if(!conv) return;
-  const answer=$('answerBox').value.trim(); if(answer.length<2){alert('Digite uma resposta.'); return;}
+  const answer=$('answerBox').value.trim(); if(answer.length<2){ v19ShowValidation('Digite uma resposta antes de enviar.'); return;}
   clearTimeout(conv.nagTimer); conv.status='awaiting_client'; conv.lastAgentAt=Date.now(); conv.botNoticeSent=false;
   const oldActive=activeCase, oldReal=realistic; activeCase=conv.case; realistic=conv.realistic;
   v17AddMessage(conv,'agent',answer); conv.answerLog.push(answer); $('answerBox').value='';
@@ -992,3 +1001,807 @@ finishSession = function(){
 };
 // Garante eventos finais após sobrescritas
 v18EnsureToast(); v18EnsureManagerModal(); refreshAll();
+
+
+/* =====================================================
+   V19 - MOTOR DE IA CONTEXTUAL E CORREÇÕES DE USABILIDADE
+   - Cliente lê a resposta do atendente e reage conforme produto/caso
+   - Remove respostas sem contexto entre produtos diferentes
+   - Corrige Enter/Shift+Enter e troca alert por validação/toast
+   - Evita cobrança repetida do cliente
+   ===================================================== */
+function v19ShowValidation(msg){
+  if(typeof v18Toast==='function') v18Toast('Atenção', msg);
+  const box=$('answerBox');
+  if(!box) return;
+  box.classList.add('inputError');
+  let el=$('answerValidationMsg');
+  if(!el){ box.insertAdjacentHTML('afterend', '<div id="answerValidationMsg" class="validationMsg"></div>'); el=$('answerValidationMsg'); }
+  el.textContent=msg;
+  clearTimeout(window.__answerValidationTimer);
+  window.__answerValidationTimer=setTimeout(()=>{ box.classList.remove('inputError'); if(el) el.textContent=''; },2600);
+}
+function v19Clean(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function v19Any(t, arr){ return arr.some(w=>t.includes(w)); }
+function v19Context(c){
+  const product=v19Clean(c?.product), category=v19Clean(c?.category), title=v19Clean(c?.title), message=v19Clean(c?.message), ideal=v19Clean(c?.ideal), history=v19Clean((c?.history||[]).join(' '));
+  const all=[product,category,title,message,ideal,history].join(' ');
+  let domain='geral';
+  if(product.includes('refinanciamento de veiculo') || product.includes('financiamento de veiculo') || all.includes('carro') || all.includes('veiculo')) domain='veiculo_refin';
+  else if(all.includes('ctps') || all.includes('carteira de trabalho') || all.includes('autorizacao')) domain='ctps_autorizacao';
+  else if(all.includes('valor baixo') || all.includes('valor ficou') || (all.includes('valor') && all.includes('taxa'))) domain='valor_baixo';
+  else if(all.includes('reprov')) domain='reprovado';
+  else if(all.includes('pagamento') || all.includes('pix') || all.includes('devolv')) domain='pagamento';
+  else if(all.includes('boleto') || all.includes('demissao') || all.includes('parcela')) domain='boleto';
+  else if(all.includes('quitacao') || all.includes('liquidacao') || all.includes('saldo devedor')) domain='quitacao';
+  else if(all.includes('fgts')) domain='fgts';
+  return {product,category,title,message,ideal,history,all,domain};
+}
+function v19AnalyzeAnswer(answer,c){
+  const t=v19Clean(answer), ctx=v19Context(c);
+  const has={
+    empathy:v19Any(t,['entendo','compreendo','imagino','fica tranquilo','vou te ajudar','sua preocupacao','faz sentido','lamento','sinto muito','sem problemas']),
+    nextStep:v19Any(t,['proximo passo','seguir','continuar','cadastro','simulacao','simular','assinar','autorizar','me confirma','me envie','envie','manda','vou verificar','posso verificar','vou consultar','print','cpf','documento','dados','placa','renavam']),
+    explains:v19Any(t,['porque','motivo','ocorre','acontece','devido','por conta','analise','politica','taxa','banco','dataprev','ctps','carteira de trabalho','autorizacao','avaliacao','veiculo','garantia','refinanciamento','proposta']),
+    unsafe:/garanto|garantido|100%|certeza que cai|vai cair hoje|aprova com certeza|prometo/.test(t),
+    short:t.length<45 || /^(ok|certo|sim|nao|aguarde|so aguardar|vou ver|verifiquei|deseja\??)$/i.test(answer.trim()),
+    asksCpf:/\bcpf\b|documento|cadastro|dados/.test(t),
+    mentionsCtps:v19Any(t,['ctps','carteira de trabalho','autorizar','autorizacao','print','erro','aplicativo']),
+    mentionsVehicle:v19Any(t,['veiculo','carro','moto','quitado','refinanciamento','placa','renavam','documento do veiculo','avaliacao','alienado','garantia']),
+    mentionsLoanQuit:/quitacao|liquidacao|quitar tudo|saldo devedor|boleto de quitacao/.test(t),
+    mentionsValue:v19Any(t,['valor','baixo','taxa','juros','oferta','proposta','liberad','esperar','condicao','dataprev']),
+    mentionsPayment:v19Any(t,['pagamento','pix','cair','deposito','conta','banco','chave','devolvido']),
+    mentionsReprov:/reprovad|politica interna|restricao|analise interna|banco nao aprovou/.test(t),
+    mentionsBoleto:v19Any(t,['boleto','parcela','mensalmente','demissao','saiu da empresa','rescisao'])
+  };
+  const score = (has.empathy?1:0)+(has.nextStep?1:0)+(has.explains?1:0);
+  return {...has, ctx, quality:score, irrelevant:
+    (ctx.domain==='veiculo_refin' && (has.mentionsCtps || has.mentionsLoanQuit && !has.mentionsVehicle)) ||
+    (ctx.domain==='ctps_autorizacao' && has.mentionsVehicle) ||
+    (ctx.domain==='valor_baixo' && (has.mentionsVehicle || has.mentionsLoanQuit && !has.mentionsValue))
+  };
+}
+function v19Pick(conv, arr){
+  const st=conv?.realistic || realistic || {};
+  st.usedV19=st.usedV19||[];
+  let list=arr.filter(x=>!st.usedV19.includes(x));
+  if(!list.length){ st.usedV19=[]; list=arr; }
+  const msg=list[Math.floor(Math.random()*list.length)] || arr[0];
+  st.usedV19.push(msg);
+  return msg;
+}
+function v19ClientReplyByAnswer(c, ev, answer){
+  const st=realistic || {}; const a=v19AnalyzeAnswer(answer,c); const ctx=a.ctx;
+  const conv = V17?.conversations?.find(x=>x.realistic===st) || null;
+  if(ev.flags.offensive) return {end:true,outcome:'desistiu',text:v19Pick(conv,['Nossa... desse jeito eu não vou continuar.','Achei essa resposta bem inadequada. Vou encerrar por aqui.'])};
+  if(a.unsafe) return {text:v19Pick(conv,['Você consegue mesmo garantir isso? Tenho medo de depois dar problema.','Mas se não acontecer desse jeito, como fica?','Prefiro que você me explique sem promessa, para eu entender certo.'])};
+  if(a.irrelevant) return {text:v19Pick(conv,[`Mas meu caso é sobre ${c.product}. O que isso tem a ver com o que eu perguntei?`,'Acho que misturou com outro atendimento. Pode verificar meu caso de novo?','Não entendi a relação dessa orientação com o meu caso.'])};
+  if(a.short || ev.flags.badShort) return {text:v19Pick(conv,['Ficou muito curto para mim. Pode explicar melhor o que eu preciso fazer?','Não entendi direito. Qual é o próximo passo exatamente?','Ainda fiquei com dúvida. Pode detalhar um pouco mais?'])};
+  if(ev.flags.insecure) return {text:v19Pick(conv,['Assim eu fico mais inseguro ainda. Você consegue verificar certinho antes de eu seguir?','Entendi, mas preciso de uma orientação mais segura.','Se a informação não está clara, prefiro não assinar ainda.'])};
+  if(ctx.domain==='veiculo_refin'){
+    if(a.mentionsVehicle && a.nextStep && (a.explains || a.empathy)){
+      if(st.turns>=2 || ev.total>=82) return {end:true,outcome:'aceitou',text:v19Pick(conv,['Entendi. Pode seguir com a simulação do refinanciamento do veículo para mim.','Agora ficou claro. Quero ver quanto consigo usando meu veículo.','Certo, pode continuar comigo e verificar a proposta.'])};
+      return {text:v19Pick(conv,['Entendi. Quais dados do veículo você precisa para consultar?','Certo. Precisa de placa, documento ou CPF para verificar?','Tá, e quanto tempo demora para saber o valor que libera?','Meu carro precisa estar quitado mesmo ou pode estar financiado?'])};
+    }
+    if(!a.mentionsVehicle) return {text:v19Pick(conv,['Mas no meu caso é usando o carro. Como funciona esse refinanciamento?','Você consegue me explicar usando o veículo como garantia?','Quais dados do carro você precisa para verificar?'])};
+    return {text:v19Pick(conv,['Entendi a parte do veículo, mas qual é o próximo passo?','Certo, e como faço para continuar a simulação?','Tem alguma taxa antes de liberar?'])};
+  }
+  if(ctx.domain==='ctps_autorizacao'){
+    if(a.mentionsCtps && a.nextStep){
+      if(st.turns>=2 && ev.total>=75) return {end:true,outcome:'concluído',text:v19Pick(conv,['Agora entendi. Vou tentar novamente na Carteira de Trabalho e te mando print se aparecer erro.','Certo, vou seguir esse passo e retorno se não conseguir finalizar.'])};
+      return {text:v19Pick(conv,['Entendi. Se aparecer erro eu te mando o print, certo?','Tá, vou tentar autorizar novamente na Carteira de Trabalho. Onde eu clico depois disso?','Certo. Preciso sair e entrar no aplicativo de novo?'])};
+    }
+    return {text:v19Pick(conv,['Mas o problema está na autorização da Carteira de Trabalho. O que faço lá?','Não consegui finalizar a autorização. Você precisa de print do erro?','Pode me orientar passo a passo na CTPS?'])};
+  }
+  if(ctx.domain==='valor_baixo'){
+    if(a.mentionsValue && a.explains && a.nextStep){
+      if(st.turns>=2 || ev.total>=82) return {end:true,outcome:'aceitou',text:v19Pick(conv,['Agora fez sentido. Se a condição pode mudar, pode seguir com a simulação/cadastro para mim.','Entendi melhor. Então vamos aproveitar essa condição e seguir.','Tá, agora ficou claro. Pode continuar comigo.'])};
+      return {text:v19Pick(conv,['Entendi o motivo. Então o que preciso confirmar para seguir?','Certo, e para garantir essa condição eu faço o cadastro agora?','Tá, se eu esperar pode mudar. Pode continuar comigo.'])};
+    }
+    return {text:v19Pick(conv,['Mas por que esse valor pode mudar?','Não entendi o que a taxa tem a ver com isso.','Será que não compensa esperar mais um pouco?'])};
+  }
+  if(ctx.domain==='pagamento'){
+    if(a.mentionsPayment && a.nextStep) return {text:v19Pick(conv,['Certo. Você consegue conferir pelo meu CPF?','Entendi. Se voltou o pagamento, como faço para trocar a conta?','Tá, qual prazo real para resolver isso?'])};
+    return {text:v19Pick(conv,['Mas o dinheiro ainda não caiu. Como eu acompanho isso?','E se voltou o pagamento, o que eu preciso mandar?','Você consegue verificar minha proposta?'])};
+  }
+  if(ctx.domain==='reprovado'){
+    if(a.mentionsReprov && a.nextStep) return {text:v19Pick(conv,['Entendi. Então tenta por outro banco para mim, por favor.','Tá, se esse banco não aprovou, podemos tentar outra opção?','Certo. Eu tenho chance em outro banco?'])};
+    return {text:v19Pick(conv,['Mas eu assinei o contrato, como foi reprovado?','Não entendi o motivo da reprovação.','Tem algo que eu possa fazer para tentar novamente?'])};
+  }
+  if(ctx.domain==='boleto'){
+    if(a.mentionsBoleto && a.nextStep) return {text:v19Pick(conv,['Certo, então posso solicitar o boleto mensalmente com vocês.','Entendi. Quando vencer a próxima parcela eu chamo vocês.','Tá bom, obrigado por explicar.'])};
+    return {text:v19Pick(conv,['Como eu faço para pagar agora que saí da empresa?','Vai descontar da minha rescisão ou preciso pedir boleto?','Onde solicito esse boleto?'])};
+  }
+  if(ctx.domain==='quitacao'){
+    if(a.mentionsLoanQuit && a.nextStep) return {text:v19Pick(conv,['Entendi. Quero o boleto de quitação então.','Certo, pode solicitar o valor para mim?','Tá bom. E qual o prazo para baixa depois que eu pagar?'])};
+    return {text:v19Pick(conv,['Eu quero quitar tudo. Como faço?','Qual é a diferença entre quitar e antecipar?','Depois que pagar, quando dá baixa?'])};
+  }
+  if(a.empathy && a.explains && a.nextStep && ev.total>=80){
+    if(st.turns>=2) return {end:true,outcome:'aceitou',text:v19Pick(conv,['Agora ficou claro. Pode seguir com o atendimento para mim.','Entendi, obrigado por explicar. Pode continuar.','Tá certo, vamos seguir então.'])};
+    return {text:v19Pick(conv,['Certo, agora entendi melhor. Qual o próximo passo?','Beleza. O que você precisa de mim agora?','Tá, consegue continuar por aqui mesmo?'])};
+  }
+  if(a.nextStep && ev.total>=70) return {text:v19Pick(conv,['Certo, vou te mandar. Depois disso o que acontece?','Beleza. Qual informação você precisa primeiro?','Tá, e você consegue resolver por aqui mesmo?'])};
+  return {text:v19Pick(conv,['Pode explicar de um jeito mais simples?','Ainda fiquei com dúvida.','Entendi uma parte, mas não sei o que faço agora.'])};
+}
+realisticClientReply = function(c,ev,answer){
+  const st=realistic;
+  if(!st || st.closed) return {end:true,outcome:'encerrado',text:'Atendimento encerrado.'};
+  if(st.trust<=8) return {end:true,outcome:'desistiu',text:v19Pick(null,['Olha, eu não me senti seguro para seguir. Vou deixar para depois.','Ainda não me passou segurança. Prefiro encerrar por enquanto.'])};
+  if(st.patience<=8) return {end:true,outcome:'perdeu paciência',text:v19Pick(null,['Acho que essa conversa não vai resolver meu problema. Vou encerrar por aqui.','Demorou bastante e eu acabei perdendo a confiança. Vou deixar para depois.'])};
+  const reply=v19ClientReplyByAnswer(c,ev,answer);
+  if(reply.end) return reply;
+  if(st.turns>=6){
+    if(st.trust>=60 && ev.total>=70) return {end:true,outcome:'aceitou',text:v19Pick(null,['Tá certo, já consegui entender. Pode seguir com a proposta.','Agora ficou claro. Vamos seguir.'])};
+    return {end:true,outcome:'desistiu',text:v19Pick(null,['Vou pensar melhor e qualquer coisa volto depois.','Ainda fiquei em dúvida, vou deixar para outro momento.'])};
+  }
+  return reply;
+};
+function v19BindAnswerBox(){
+  const old=$('answerBox'); if(!old || old.dataset.v19Bound==='1') return;
+  const fresh=old.cloneNode(true); fresh.dataset.v19Bound='1'; old.parentNode.replaceChild(fresh, old);
+  fresh.addEventListener('keydown', e=>{
+    if(e.key==='Enter' && !e.shiftKey){
+      e.preventDefault();
+      if(selectedMode==='conversa' && V17 && V17.live) v17SendAnswer(); else sendAnswer();
+    }
+  });
+  fresh.addEventListener('input',()=>{ if(typeof scheduleTypingInterrupt==='function') scheduleTypingInterrupt(); const msg=$('answerValidationMsg'); if(msg) msg.textContent=''; fresh.classList.remove('inputError'); });
+}
+setTimeout(()=>{
+  v19BindAnswerBox();
+  if($('sendAnswerBtn')) $('sendAnswerBtn').onclick=()=>{ if(selectedMode==='conversa' && V17 && V17.live) v17SendAnswer(); else sendAnswer(); };
+  if(window.CONCREDITO_CASES){ window.CONCREDITO_CASES.forEach(c=>{ if(c.category==='Pendência') c.category='Autorização CTPS'; }); }
+  if(window.CONCREDITO_CATEGORIES){ window.CONCREDITO_CATEGORIES=window.CONCREDITO_CATEGORIES.map(c=>c==='Pendência'?'Autorização CTPS':c); }
+  fillSelects?.(); refreshAll?.();
+},0);
+
+/* =====================================================
+   V20 - IA CONTEXTUAL NÍVEL 2
+   - Cliente lê a resposta do atendente dentro do contexto do caso
+   - Análise invisível em JSON/estado antes de gerar a fala
+   - Personalidade e humor mudam conforme a qualidade do atendimento
+   - Perguntas novas e coerentes com o produto/caso
+   - Trava contra mudança de assunto e repetição de respostas
+   ===================================================== */
+const V20 = { version:'v20_ia_nivel_2_contextual' };
+function v20Clean(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim(); }
+function v20Any(t, arr){ return arr.some(w=>t.includes(w)); }
+function v20Rand(arr){ return arr[Math.floor(Math.random()*arr.length)] || arr[0] || ''; }
+function v20Conversation(){
+  if(typeof V17!=='undefined' && Array.isArray(V17.conversations) && activeCase){
+    const found = V17.conversations.find(x=>x.case && x.case.id===activeCase.id);
+    if(found) return found;
+  }
+  return null;
+}
+function v20State(st,c){
+  st.v20 = st.v20 || {
+    stage:'inicio', confidence: st.trust ?? 45, mood: st.persona?.mood || 'neutro',
+    asked:[], known:[], lastReplies:[], objectives:[], turns:0
+  };
+  if(!st.v20.objectives.length){
+    const ctx=v20Context(c);
+    st.v20.objectives = v20Objectives(ctx);
+  }
+  return st.v20;
+}
+function v20Context(c){
+  const product=v20Clean(c?.product), category=v20Clean(c?.category), title=v20Clean(c?.title), message=v20Clean(c?.message), ideal=v20Clean(c?.ideal), goal=v20Clean(c?.goal), criteria=v20Clean(c?.criteria), hint=v20Clean(c?.hint), history=v20Clean((c?.history||[]).join(' '));
+  const all=[product,category,title,message,ideal,goal,criteria,hint,history].join(' ');
+  let domain='geral';
+  if(product.includes('refinanciamento de veiculo') || title.includes('refinanciar veiculo') || all.includes('carro quitado') || (all.includes('veiculo') && all.includes('garantia'))) domain='veiculo_refin';
+  else if(product.includes('financiamento de veiculo') || (all.includes('financiar') && all.includes('veiculo'))) domain='veiculo_fin';
+  else if(all.includes('ctps') || all.includes('carteira de trabalho') || all.includes('autorizacao')) domain='ctps_autorizacao';
+  else if(all.includes('valor baixo') || all.includes('valor ficou') || all.includes('esperar mais') || (all.includes('valor') && all.includes('taxa'))) domain='valor_baixo';
+  else if(all.includes('golpe') || all.includes('taxa antecipada') || all.includes('seguranca')) domain='seguranca';
+  else if(all.includes('reprov')) domain='reprovado';
+  else if(all.includes('pagamento') || all.includes('pix') || all.includes('devolv') || all.includes('nao caiu')) domain='pagamento';
+  else if(all.includes('boleto') || all.includes('demissao') || all.includes('parcela')) domain='boleto';
+  else if(all.includes('quitacao') || all.includes('liquidacao') || all.includes('saldo devedor')) domain='quitacao';
+  else if(product.includes('fgts') || all.includes('fgts')) domain='fgts';
+  else if(product.includes('inss') || all.includes('margem')) domain='inss';
+  else if(product.includes('bolsa familia')) domain='bolsa_familia';
+  return {product,category,title,message,ideal,goal,criteria,hint,history,all,domain, raw:c};
+}
+function v20Objectives(ctx){
+  const map={
+    veiculo_refin:['entender se o veículo pode ser usado como garantia','saber quais dados do carro precisa enviar','confirmar se há taxa e prazo de análise','aceitar seguir para simulação'],
+    veiculo_fin:['saber documentos necessários','entender início da análise','aceitar enviar dados do veículo'],
+    ctps_autorizacao:['conseguir concluir a autorização na CTPS','saber se precisa mandar print do erro','entender o próximo passo após autorizar'],
+    valor_baixo:['entender por que o valor veio baixo','avaliar se vale esperar','aceitar seguir se a explicação for segura'],
+    seguranca:['confirmar que não é golpe','entender canais oficiais e ausência de taxa antecipada','sentir confiança para continuar'],
+    pagamento:['localizar proposta pelo CPF','entender por que o dinheiro não caiu','saber próximo passo se houver devolução'],
+    reprovado:['entender a reprovação sem termos internos','saber se existe alternativa em outro banco','decidir se tenta nova opção'],
+    boleto:['entender como pagar após sair da empresa','saber como solicitar boleto','saber o que acontece com parcelas restantes'],
+    quitacao:['entender diferença entre quitação e antecipação','pedir boleto de quitação','saber prazo de baixa'],
+    fgts:['entender bloqueio/contrato FGTS','confirmar consulta por CPF','saber próximo passo'],
+    inss:['entender margem insuficiente','saber quando consultar novamente','não receber promessa indevida'],
+    bolsa_familia:['saber se existe opção disponível','entender que depende de consulta','enviar CPF para análise segura'],
+    geral:['entender a orientação','sentir segurança','saber o próximo passo']
+  };
+  return map[ctx.domain] || map.geral;
+}
+function v20AnalyzeAttendant(answer,c,ev){
+  const t=v20Clean(answer), ctx=v20Context(c);
+  const terms={
+    empathy:v20Any(t,['entendo','compreendo','imagino','fica tranquilo','vou te ajudar','sua preocupacao','lamento','sinto muito','sem problemas','vamos resolver','te ajudo']),
+    nextStep:v20Any(t,['proximo passo','seguir','continuar','cadastro','simulacao','simular','assinar','autorizar','me confirma','me envie','envie','manda','vou verificar','posso verificar','vou consultar','print','cpf','documento','dados','placa','renavam','modelo','ano','te oriento']),
+    explains:v20Any(t,['porque','motivo','ocorre','acontece','devido','por conta','analise','politica','taxa','banco','dataprev','ctps','carteira de trabalho','autorizacao','avaliacao','garantia','refinanciamento','proposta','margem','consulta']),
+    asksData:v20Any(t,['cpf','documento','dados','placa','renavam','modelo','ano','print','comprovante','numero do contrato']),
+    safe:v20Any(t,['sem taxa antecipada','canal oficial','contrato','assinatura digital','comprovante','consultar com seguranca','verificar no sistema','nao consigo confirmar sem consultar','depende da analise']),
+    commercial:v20Any(t,['condicao','oportunidade','seguir agora','simular','ver outra opcao','outro banco','melhor alternativa','continuar','proposta']),
+    unsafe:/garanto|garantido|100%|certeza que cai|vai cair hoje|aprova com certeza|prometo|sem erro/.test(t),
+    vague:t.length<45 || /^(ok|certo|sim|nao|aguarde|so aguardar|vou ver|verifiquei|deseja\??|pode ser)$/i.test(String(answer||'').trim())
+  };
+  const topic={
+    ctps:v20Any(t,['ctps','carteira de trabalho','autorizar','autorizacao','app carteira','print do erro']),
+    vehicle:v20Any(t,['veiculo','carro','moto','quitado','refinanciamento','placa','renavam','documento do veiculo','avaliacao','alienado','garantia','modelo','ano']),
+    value:v20Any(t,['valor','baixo','taxa','juros','oferta','proposta','liberad','esperar','condicao','dataprev']),
+    payment:v20Any(t,['pagamento','pix','cair','deposito','conta','banco','chave','devolvido']),
+    reprov:/reprovad|politica interna|restricao|analise interna|banco nao aprovou/.test(t),
+    boleto:v20Any(t,['boleto','parcela','mensalmente','demissao','saiu da empresa','rescisao']),
+    quit:/quitacao|liquidacao|quitar tudo|saldo devedor|boleto de quitacao/.test(t),
+    security:v20Any(t,['golpe','seguro','canal oficial','taxa antecipada','contrato','cnpj'])
+  };
+  let irrelevant=false;
+  if(ctx.domain==='veiculo_refin' && (topic.ctps || (topic.quit && !topic.vehicle))) irrelevant=true;
+  if(ctx.domain==='ctps_autorizacao' && topic.vehicle) irrelevant=true;
+  if(ctx.domain==='valor_baixo' && (topic.vehicle || (topic.quit && !topic.value))) irrelevant=true;
+  if(ctx.domain==='pagamento' && topic.vehicle) irrelevant=true;
+  if(ctx.domain==='seguranca' && topic.vehicle && !topic.security) irrelevant=true;
+  const missing=[];
+  if(!terms.empathy && ['nervoso','bravo','desconfiado','desesperado'].some(x=>ctx.all.includes(x))) missing.push('empatia');
+  if(!terms.explains) missing.push('explicação');
+  if(!terms.nextStep) missing.push('próximo passo');
+  if(['pagamento','fgts','boleto','quitacao'].includes(ctx.domain) && !terms.asksData && !terms.nextStep) missing.push('dados para consulta');
+  let quality=(terms.empathy?20:0)+(terms.explains?28:0)+(terms.nextStep?30:0)+(terms.safe?12:0)+(terms.commercial?10:0);
+  if(terms.vague) quality-=35;
+  if(terms.unsafe) quality-=35;
+  if(irrelevant) quality-=45;
+  if(ev?.flags?.offensive) quality=0;
+  quality=Math.max(0,Math.min(100, Math.round((quality + (ev?.total||70))/2)));
+  let resolution='nao_resolveu';
+  if(quality>=82) resolution='resolveu'; else if(quality>=60) resolution='parcial';
+  return {ctx,terms,topic,irrelevant,missing,quality,resolution,raw:answer};
+}
+function v20UpdateConversationState(st,c,analysis){
+  const state=v20State(st,c);
+  state.turns++;
+  const oldMood=state.mood;
+  if(analysis.terms.unsafe || analysis.irrelevant || analysis.quality<45){
+    state.confidence=Math.max(0,state.confidence-18); st.trust=Math.max(0,(st.trust||50)-12); st.patience=Math.max(0,(st.patience||60)-10); state.mood = st.trust<25 ? 'irritado' : 'confuso';
+    state.stage = 'duvida';
+  } else if(analysis.resolution==='parcial'){
+    state.confidence=Math.min(100,state.confidence+7); st.trust=Math.min(100,(st.trust||50)+5); state.mood = state.confidence>55 ? 'neutro' : 'inseguro';
+    state.stage = 'aprofundar';
+  } else {
+    state.confidence=Math.min(100,state.confidence+18); st.trust=Math.min(100,(st.trust||50)+12); st.patience=Math.min(100,(st.patience||60)+4); state.mood = state.confidence>=75 ? 'satisfeito' : 'tranquilo';
+    state.stage = state.turns>=2 ? 'fechamento' : 'confiando';
+  }
+  if(oldMood!==state.mood && Array.isArray(st.events)) st.events.push(`Humor do cliente mudou de ${oldMood} para ${state.mood}.`);
+  return state;
+}
+function v20Say(st, msg){
+  const state=st?.v20 || {}; state.lastReplies=state.lastReplies||[];
+  let out=msg;
+  if(state.lastReplies.includes(out)){
+    out = out + ' Pode me orientar melhor?';
+  }
+  state.lastReplies.push(out); state.lastReplies=state.lastReplies.slice(-6);
+  return out;
+}
+function v20StyleMessage(msg, st){
+  const persona=st?.persona?.id || 'tranquilo';
+  const mood=st?.v20?.mood || st?.mood || 'neutro';
+  let m=msg;
+  if(persona==='nervoso' || mood==='irritado'){
+    if(Math.random()<0.35) m = m.replace(/\.$/,'') + '...';
+    if(Math.random()<0.25) m = m.toUpperCase();
+  } else if(persona==='whatsapp'){
+    m = m.replace(/Certo,/g,'Tá,').replace(/Entendi\./g,'entendi').replace(/por favor/g,'pfv');
+    if(Math.random()<0.35) m += ' kk';
+  } else if(persona==='idoso'){
+    m = m.replace('Tá,','Certo,').replace('kk','');
+    // sem “meu filho” fixo; só usa variações neutras e raras.
+    if(Math.random()<0.18) m = m.replace(/\?$/,'? Estou um pouco perdido.');
+  } else if(persona==='desconfiado'){
+    if(!/\?/.test(m) && Math.random()<0.35) m += ' Isso é seguro mesmo?';
+  } else if(persona==='apressado'){
+    m = m.length>115 ? m.slice(0,112)+'?' : m;
+  } else if(persona==='desesperado'){
+    if(Math.random()<0.25) m = 'Eu preciso resolver isso hoje. ' + m;
+  }
+  return m;
+}
+function v20QuestionBank(ctx, state){
+  const bank={
+    veiculo_refin:[
+      'Quais dados do veículo você precisa para consultar?',
+      'Precisa estar no meu nome para conseguir fazer?',
+      'Tem alguma taxa antes de liberar o dinheiro?',
+      'Quanto tempo demora para saber o valor aprovado?',
+      'Se o carro estiver quitado, ajuda na aprovação?',
+      'Vocês precisam de placa e Renavam agora?'
+    ],
+    veiculo_fin:[
+      'Quais documentos eu preciso mandar primeiro?',
+      'Precisa de comprovante de renda?',
+      'Dá para financiar veículo usado também?',
+      'Vocês analisam antes de eu escolher o carro?'
+    ],
+    ctps_autorizacao:[
+      'Se aparecer erro eu mando print para você?',
+      'Depois de autorizar na Carteira de Trabalho, o que acontece?',
+      'Preciso sair e entrar no aplicativo de novo?',
+      'Onde exatamente aparece essa autorização na CTPS?',
+      'Se eu clicar mais de uma vez em já autorizei, muda alguma coisa?'
+    ],
+    valor_baixo:[
+      'Então se eu esperar pode diminuir mais?',
+      'A taxa pode mudar mesmo depois da simulação?',
+      'Tem como tentar outro banco para ver se melhora?',
+      'Se eu seguir agora, consigo garantir essa condição?',
+      'Por que meu aplicativo mostra outro valor?'
+    ],
+    seguranca:[
+      'Vocês cobram alguma taxa antes?',
+      'Como eu confirmo que esse é o canal oficial?',
+      'Eu consigo ver contrato antes de assinar?',
+      'E se alguém pedir Pix para liberar, isso é golpe?',
+      'Fico com medo de mandar meus dados. Como funciona?'
+    ],
+    pagamento:[
+      'Você consegue conferir pelo meu CPF?',
+      'Se o pagamento voltou, como eu troco a conta?',
+      'Qual prazo real depois que corrige os dados bancários?',
+      'Está em análise ou já foi enviado para pagamento?',
+      'Tem como mandar comprovante quando for pago?'
+    ],
+    reprovado:[
+      'Mas por que reprovou se eu assinei?',
+      'Dá para tentar em outro banco?',
+      'Tem algo que eu possa corrigir para aprovar?',
+      'Isso quer dizer que não tenho mais chance?',
+      'A reprovação foi da ConCrédito ou do banco?'
+    ],
+    boleto:[
+      'Como eu solicito o boleto da parcela?',
+      'Vai descontar alguma coisa da minha rescisão?',
+      'Depois que sair da empresa, como ficam as parcelas?',
+      'Consigo pagar o restante por boleto?',
+      'Tem prazo para gerar esse boleto?'
+    ],
+    quitacao:[
+      'Qual a diferença entre quitar e antecipar?',
+      'Você consegue gerar o boleto de quitação?',
+      'Depois que pagar, quando baixa no sistema?',
+      'O valor de quitação tem desconto de juros?',
+      'Posso quitar tudo de uma vez?'
+    ],
+    fgts:[
+      'Por que aparece bloqueio no meu FGTS?',
+      'Você consegue localizar pelo meu CPF?',
+      'Tem contrato vinculado a esse bloqueio?',
+      'Depois de quitar, quando desbloqueia?',
+      'Consigo receber uma cópia do contrato?'
+    ],
+    inss:[
+      'O que significa margem insuficiente?',
+      'Pode liberar margem depois?',
+      'Tem como consultar novamente outro dia?',
+      'Se eu quitar outro contrato, ajuda?'
+    ],
+    bolsa_familia:[
+      'Então depende de consulta no meu CPF?',
+      'Você consegue verificar se tem alguma opção liberada?',
+      'Não é aprovação garantida, certo?',
+      'Quais dados você precisa para consultar?'
+    ],
+    geral:[
+      'Certo, e qual é o próximo passo?',
+      'Você consegue verificar isso para mim?',
+      'O que eu preciso te mandar agora?',
+      'Pode explicar de um jeito mais simples?'
+    ]
+  };
+  let arr=bank[ctx.domain] || bank.geral;
+  const asked=state.asked||[];
+  let available=arr.filter(q=>!asked.includes(q));
+  if(!available.length){ state.asked=[]; available=arr; }
+  const q=v20Rand(available); state.asked.push(q); return q;
+}
+function v20GenerateClientMessage(c, analysis, state, st){
+  const ctx=analysis.ctx;
+  if(analysis.irrelevant){
+    return v20Say(st, v20Rand([
+      `Acho que misturou com outro atendimento. Meu caso é ${c.product}.`,
+      `Não entendi a relação disso com ${c.product}. Pode olhar meu caso de novo?`,
+      `Mas isso tem a ver com o que eu perguntei? Eu estava falando sobre ${c.product}.`
+    ]));
+  }
+  if(analysis.terms.unsafe){
+    return v20Say(st, v20Rand([
+      'Você consegue me explicar sem garantir? Tenho medo de depois dar problema.',
+      'Quando você fala assim parece promessa. O que realmente depende da análise?',
+      'Prefiro entender o processo certo antes de seguir.'
+    ]));
+  }
+  if(analysis.terms.vague || analysis.quality<45){
+    return v20Say(st, v20Rand([
+      'Ficou muito curto para mim. Pode explicar melhor?',
+      'Não entendi direito. O que eu preciso fazer agora?',
+      'Você pode me orientar com mais detalhes?',
+      'Assim ainda fico com dúvida. Qual seria o próximo passo?'
+    ]));
+  }
+  if(analysis.resolution==='parcial'){
+    if(analysis.missing.includes('próximo passo')) return v20Say(st, v20Rand(['Entendi a explicação, mas o que eu faço agora?','Certo, e para seguir eu preciso mandar o quê?','Tá, e qual é o próximo passo?']));
+    if(analysis.missing.includes('explicação')) return v20Say(st, v20Rand(['Entendi, mas por que isso acontece?','Pode me explicar o motivo disso?','Queria entender melhor antes de seguir.']));
+    return v20Say(st, v20QuestionBank(ctx,state));
+  }
+  // resposta boa: avança, cria pergunta nova ou encerra com sucesso se já houver confiança suficiente
+  const confident = (state.confidence>=72 || (st.trust||0)>=70 || analysis.quality>=86);
+  if(confident && state.turns>=2){
+    const closing={
+      veiculo_refin:['Agora ficou claro. Pode seguir com a simulação do refinanciamento do veículo para mim.','Entendi. Quero ver quanto consigo usando meu veículo, pode continuar.'],
+      ctps_autorizacao:['Certo, vou tentar novamente na Carteira de Trabalho e te mando print se aparecer erro.','Agora entendi. Vou seguir esse passo e retorno se não conseguir.'],
+      valor_baixo:['Agora fez sentido. Pode seguir com a simulação para mim.','Entendi melhor. Vamos aproveitar essa condição e seguir.'],
+      seguranca:['Agora fiquei mais tranquilo. Pode continuar comigo.','Entendi. Se não tem taxa antecipada e tem contrato, podemos seguir.'],
+      pagamento:['Certo, vou te passar os dados para você verificar.','Entendi. Pode consultar minha proposta então.'],
+      reprovado:['Entendi. Então tenta outra opção de banco para mim.','Certo, pode verificar se existe outra alternativa.'],
+      boleto:['Entendi. Quando precisar do boleto vou solicitar com vocês.','Tá bom, obrigado por explicar. Pode seguir com a orientação.'],
+      quitacao:['Entendi. Quero o boleto de quitação então.','Certo, pode solicitar o valor de quitação para mim.'],
+      fgts:['Entendi. Pode consultar pelo meu CPF para verificar esse bloqueio.','Certo, pode localizar o contrato para mim.'],
+      inss:['Agora entendi. Podemos consultar novamente futuramente.','Certo, obrigado por explicar a margem.'],
+      bolsa_familia:['Entendi. Pode verificar se existe opção disponível no meu CPF.','Certo, pode fazer a consulta para mim.'],
+      geral:['Agora ficou claro. Pode seguir com o atendimento para mim.','Entendi, obrigado por explicar. Pode continuar.']
+    };
+    return v20Say(st, v20Rand(closing[ctx.domain]||closing.geral));
+  }
+  return v20Say(st, v20QuestionBank(ctx,state));
+}
+realisticClientReply = function(c,ev,answer){
+  const st=realistic || (v20Conversation()?.realistic) || {};
+  if(!st || st.closed) return {end:true,outcome:'encerrado',text:'Atendimento encerrado.'};
+  if(st.trust<=8) return {end:true,outcome:'desistiu',text:v20Rand(['Olha, eu não me senti seguro para seguir. Vou deixar para depois.','Ainda não me passou segurança. Prefiro encerrar por enquanto.'])};
+  if(st.patience<=8) return {end:true,outcome:'perdeu paciência',text:v20Rand(['Acho que essa conversa não vai resolver meu problema. Vou encerrar por aqui.','Demorou bastante e eu acabei perdendo a confiança. Vou deixar para depois.'])};
+  const analysis=v20AnalyzeAttendant(answer,c,ev);
+  const state=v20UpdateConversationState(st,c,analysis);
+  if(Array.isArray(st.events)){
+    st.events.push(`IA contextual analisou: ${analysis.resolution}; qualidade ${analysis.quality}%; etapa ${state.stage}.`);
+    if(analysis.missing.length) st.events.push(`Faltou: ${analysis.missing.join(', ')}.`);
+  }
+  const msg=v20StyleMessage(v20GenerateClientMessage(c,analysis,state,st), st);
+  if(analysis.resolution==='resolveu' && state.stage==='fechamento' && (state.confidence>=72 || analysis.quality>=86)){
+    return {end:true,outcome:'aceitou',text:msg};
+  }
+  if(state.turns>=7){
+    if(state.confidence>=60 && analysis.quality>=60) return {end:true,outcome:'concluído',text:v20StyleMessage(v20Rand(['Tá certo, agora consegui entender. Obrigado pela ajuda.','Entendi. Pode seguir com esse atendimento para mim.']),st)};
+    return {end:true,outcome:'desistiu',text:v20StyleMessage(v20Rand(['Vou pensar melhor e qualquer coisa volto depois.','Ainda fiquei em dúvida, vou deixar para outro momento.']),st)};
+  }
+  return {text:msg};
+};
+
+// Atualiza o texto de versão quando existir algum rodapé/README visual futuro.
+console.log('ConCrédito Simulador - V20 IA Contextual Nível 2 carregada');
+
+
+/* =====================================================
+   V21 - IA NÍVEL 3 COM GEMINI + PERSISTÊNCIA UNIFICADA
+   - Gemini vira o cliente da conversa quando /api/cliente está disponível
+   - Envia produto, caso, persona, estado, histórico completo e última resposta
+   - Fallback local V20 se estiver rodando só no GitHub Pages/sem backend
+   - Todos os atendimentos da Simulação Realista são salvos no mesmo formato do gestor
+   ===================================================== */
+const V21 = { version:'v21_ia_nivel_3_gestor_unificado' };
+function v21Plain(s){ return String(s||'').trim(); }
+function v21ConversationHistory(conv){
+  return (conv?.messages||[]).map(m=>({kind:m.kind, text:m.text, at:m.at}));
+}
+function v21ClientePayload(conv, answer){
+  const st=conv.realistic||{};
+  return {
+    caseData:{
+      id:conv.case?.id, title:conv.case?.title, product:conv.case?.product, category:conv.case?.category,
+      difficulty:conv.case?.difficulty, profile:conv.case?.profile, message:conv.case?.message,
+      history:conv.case?.history||[], goal:conv.case?.goal||'', ideal:conv.case?.ideal||'', criteria:conv.case?.criteria||'', hint:conv.case?.hint||''
+    },
+    cliente:{
+      nome:conv.name, persona:st.persona?.id||'', estilo:st.persona?.style||'', humor:st.mood, confianca:st.trust,
+      paciencia:st.patience, interesse:st.interest, objetivoOculto:st.hiddenGoal||conv.case?.goal||''
+    },
+    estado:{
+      etapa:st.v20?.stage||st.stage||'relato', turnos:st.turns||0, memoria:st.memory||{}, perguntasFeitas:st.v20?.asked||[],
+      ultimaCobranca:conv.lastNagText||'', statusAtendente:V17.status, modo:selectedMode
+    },
+    history:v21ConversationHistory(conv),
+    ultimaRespostaAtendente:answer
+  };
+}
+async function v21GeminiClientReply(conv, ev, answer){
+  try{
+    const r=await fetch('/api/cliente',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v21ClientePayload(conv,answer))});
+    if(!r.ok) throw new Error('API indisponível');
+    const data=await r.json();
+    if(!data || !data.message || data.ok===false) throw new Error(data?.analysis?.note||'Fallback');
+    const st=conv.realistic||{};
+    if(typeof data.trust==='number') st.trust=Math.max(0,Math.min(100,Math.round(data.trust)));
+    if(typeof data.patience==='number') st.patience=Math.max(0,Math.min(100,Math.round(data.patience)));
+    if(data.mood) st.mood=data.mood;
+    st.stage=data.stage||st.stage;
+    st.memory={...(st.memory||{}), ...(data.memory||{})};
+    st.turnAnalyses=st.turnAnalyses||[];
+    st.turnAnalyses.push({turn:st.turns||0, score:data.analysis?.quality??ev.total, answer, entries:[{metric:'IA Cliente Gemini', reason:data.analysis?.note||'Resposta gerada lendo contexto completo.'}], alternative:'Responder mantendo produto, objetivo e próximo passo claros.'});
+    st.events=st.events||[];
+    st.events.push(`Gemini Nível 3 analisou: ${data.analysis?.resolution||'contextual'}; qualidade ${data.analysis?.quality??ev.total}%; etapa ${data.stage||st.stage||'não informada'}.`);
+    return {text:String(data.message).trim(), end:!!data.end, outcome:data.outcome||'concluído'};
+  }catch(err){
+    const oldA=activeCase, oldR=realistic; activeCase=conv.case; realistic=conv.realistic;
+    const rep=realisticClientReply(conv.case,ev,answer);
+    realistic?.events?.push?.(`Fallback local V20 usado porque a API Gemini não respondeu: ${err.message}.`);
+    activeCase=oldA; realistic=oldR;
+    return rep;
+  }
+}
+function v21CasePayloadFromConversation(conv, score, outcome){
+  return {
+    caseId:conv.case.id,
+    title:conv.case.title,
+    score:Math.round(score||0),
+    answer:(conv.answerLog||[]).join(' | '),
+    time:Math.round((Date.now()-(conv.createdAt||Date.now()))/1000),
+    outcome:outcome||conv.outcome||'concluído',
+    conversation:v21ConversationHistory(conv),
+    analyses:conv.realistic?.turnAnalyses||[],
+    events:conv.realistic?.events||[],
+    memory:conv.realistic?.memory||{},
+    supervisorHtml:conv.supervisorHtml||'',
+    caseData:{...conv.case},
+    startedAt:conv.createdAt,
+    finishedAt:Date.now(),
+    clientName:conv.name,
+    mode:'Simulação Realista',
+    difficulty:conv.case?.difficulty,
+    product:conv.case?.product
+  };
+}
+function v21SaveConversationToSession(conv, score, outcome){
+  if(!currentSession || !conv || conv.savedToSession) return;
+  conv.savedToSession=true;
+  currentSession.cases.push(v21CasePayloadFromConversation(conv, score, outcome));
+}
+// IA Nível 3 para a Simulação Realista: resposta assíncrona e contextual via Gemini.
+v17SendAnswer = function(){
+  const conv=V17.conversations.find(c=>c.id===V17.activeId); if(!conv) return;
+  const answer=($('answerBox')?.value||'').trim();
+  if(answer.length<2){ v19ShowValidation('Digite uma resposta antes de enviar.'); return; }
+  clearTimeout(conv.nagTimer); conv.status='awaiting_client'; conv.lastAgentAt=Date.now(); conv.botNoticeSent=false;
+  const oldActive=activeCase, oldReal=realistic; activeCase=conv.case; realistic=conv.realistic;
+  v17AddMessage(conv,'agent',answer); conv.answerLog.push(answer); $('answerBox').value='';
+  const ev=evaluate(answer,conv.case); applyRealisticState(ev,answer);
+  activeCase=oldActive; realistic=oldReal;
+  $('sendAnswerBtn').disabled=true; $('answerBox').disabled=true;
+  const cfg=v17DifficultyConfig(); const delay=cfg.replyMin+Math.random()*(cfg.replyMax-cfg.replyMin);
+  clearTimeout(conv.replyTimer); conv.replyTimer=setTimeout(async()=>{
+    if(conv.closed||conv.awaitingClose) return;
+    const rep=await v21GeminiClientReply(conv,ev,answer);
+    if(conv.closed||conv.awaitingClose) return;
+    v17AddMessage(conv,'client',rep.text);
+    if(rep.end){ v17CompleteConversation(conv,ev,answer,rep.outcome||'concluído'); }
+    if(V17.activeId===conv.id && !conv.awaitingClose){ $('sendAnswerBtn').disabled=false; $('answerBox').disabled=false; $('answerBox').focus(); }
+  }, delay);
+};
+// Reforça o wrapper principal após sobrescritas antigas.
+sendAnswer = function(){ if(selectedMode==='conversa'&&V17.live) return v17SendAnswer(); return _oldSendAnswer ? _oldSendAnswer() : undefined; };
+// Salva conversas realistas completas no histórico do gestor.
+v17CompleteConversation = function(conv,ev,answer,outcome='concluído'){
+  if(conv.awaitingClose) return;
+  conv.awaitingClose=true; conv.outcome=outcome; conv.status='awaiting_close'; clearTimeout(conv.nagTimer); clearTimeout(conv.replyTimer);
+  let bonus=outcome==='aceitou'?15:outcome==='concluído'||outcome==='concluiu'?5:outcome==='desistiu'||outcome==='perdeu paciência'?-20:0;
+  const score=Math.max(0,Math.min(100,(ev?.total||60)+bonus)); conv.score=score;
+  currentSession.solved++; currentSession.scores.push(score); currentSession.xp+=score;
+  const oA=activeCase,oR=realistic; activeCase=conv.case; realistic=conv.realistic;
+  conv.supervisorHtml=buildSupervisor(ev,answer,outcome,score)+`<div class="finishPanel"><h3>Atendimento finalizado</h3><p>Cliente não enviará mais mensagens. Clique em <b>Encerrar atendimento</b> para remover da fila.</p></div>`;
+  activeCase=oA; realistic=oR;
+  v21SaveConversationToSession(conv,score,outcome);
+  if(V17.activeId===conv.id){ v17SelectConversation(conv.id); }
+  updateHud(); playSound('finish');
+};
+v17CustomerAbandons = function(conv){
+  if(conv.closed||conv.awaitingClose) return;
+  v17AddMessage(conv,'client','Como não tive retorno, vou encerrar por aqui.');
+  conv.awaitingClose=true; conv.outcome='desistiu por demora'; conv.score=25; conv.status='awaiting_close';
+  currentSession.solved++; currentSession.scores.push(25); currentSession.xp+=25;
+  conv.supervisorHtml='<h3>Supervisor IA • Nota 25%</h3><p>O cliente abandonou por demora no retorno. Priorize clientes com indicador vermelho e use Ocupado/Ausente quando necessário.</p>';
+  v21SaveConversationToSession(conv,25,conv.outcome);
+  if(V17.activeId===conv.id) v17SelectConversation(conv.id);
+  updateHud();
+};
+// Ao finalizar a sessão, grava também conversas realistas não encerradas, evitando sumirem do painel gestor.
+const v21PreviousFinishSession = finishSession;
+finishSession = function(){
+  if(selectedMode==='conversa' && V17.live && currentSession){
+    V17.conversations.forEach(conv=>{
+      if(conv.closed || conv.savedToSession) return;
+      clearTimeout(conv.nagTimer); clearTimeout(conv.replyTimer);
+      const lastAnswer=(conv.answerLog||[]).slice(-1)[0]||'';
+      const score=conv.score || (conv.answerLog?.length ? 55 : 20);
+      conv.outcome=conv.awaitingClose?conv.outcome:'sessão finalizada';
+      if(!conv.supervisorHtml) conv.supervisorHtml='<h3>Supervisor IA</h3><p>Atendimento salvo porque a sessão foi finalizada antes do encerramento individual.</p>';
+      if(!conv.awaitingClose){ currentSession.solved++; currentSession.scores.push(score); currentSession.xp+=score; }
+      v21SaveConversationToSession(conv,score,conv.outcome);
+    });
+  }
+  return v21PreviousFinishSession();
+};
+if($('sendAnswerBtn')) $('sendAnswerBtn').onclick=sendAnswer;
+if($('finishBtn')) $('finishBtn').onclick=finishSession;
+if($('answerBox')){
+  $('answerBox').addEventListener('keydown',e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendAnswer(); } });
+}
+console.log('ConCrédito Simulador - V21 IA Nível 3 + histórico unificado carregada');
+
+
+/* =====================================================
+   V22 - BASE REAL CONCRÉDITO + IA NÍVEL 3 MAIS CONTROLADA
+   - Remove categorias artificiais (Pendência/Dúvida/Autorização CTPS)
+   - Usa "Situação" como descrição real do problema do cliente
+   - Migra casos antigos salvos no navegador para a nova biblioteca oficial
+   - Corrige cobrança indevida por demora quando o atendente acabou de responder
+   - Envia tempo real de espera para o Gemini e filtra respostas incoerentes
+   ===================================================== */
+const V22 = { version:'v22_base_real_ia_n3_controlada' };
+function v22Esc(s){return String(s??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+function v22Situation(c){ return c?.situation || c?.situacao || c?.title || 'Situação do cliente'; }
+function v22Meta(c, includeProfile=false){ return `${c?.product||'Produto'} • ${v22Situation(c)} • ${c?.difficulty||'Nível'}` + (includeProfile && c?.profile ? ` • ${c.profile}` : ''); }
+function v22NormalizeCase(c){
+  const x = normalizeCase ? normalizeCase(c) : {...c};
+  x.product = x.product === 'Crédito CLT' ? 'Crédito do Trabalhador' : x.product;
+  const bad = ['Pendência','Dúvida','Solicitação','Consulta','Autorização CTPS','Erro','Aprovação','Reprovação','Objeção'];
+  if(!x.situation){
+    if(x.id==='clt_ctps_autorizacao' || /ctps|autoriza|carteira/i.test(`${x.title} ${x.message}`)) x.situation='Cliente tentou seguir pelo aplicativo e não conseguiu finalizar';
+    else if(x.category && !bad.includes(x.category)) x.situation=x.category;
+    else x.situation=x.title || 'Situação do cliente';
+  }
+  x.category='Situação do cliente';
+  x.history=(x.history||[]).map(h=>String(h)
+    .replace(/Sem autorização concluída na CTPS Digital\.?/gi,'Cliente tentou seguir pelo aplicativo, mas não conseguiu concluir.')
+    .replace(/Cliente iniciou proposta de Crédito CLT\.?/gi,'Cliente iniciou uma proposta de Crédito do Trabalhador.')
+    .replace(/Cliente menciona bloqueio vinculado a contrato de antecipação FGTS\.?/gi,'Cliente relata bloqueio no aplicativo do FGTS.')
+  );
+  if(/A Caixa informou que meu FGTS está bloqueado\. Você sabe por quê\?/i.test(x.message||'')){
+    x.message='Fui consultar meu FGTS e apareceu que está bloqueado. Você sabe me dizer o motivo?';
+    x.situation='Cliente viu bloqueio no aplicativo ou foi informado pela Caixa';
+  }
+  if(/Estou tentando autorizar na Carteira de Trabalho/i.test(x.message||'')){
+    x.message='Estou tentando fazer pelo aplicativo, mas não consigo finalizar. Pode me ajudar?';
+    x.situation='Cliente tentou seguir pelo aplicativo e não conseguiu finalizar';
+  }
+  return x;
+}
+(function v22MigrateCases(){
+  try{
+    window.CONCREDITO_CATEGORIES=['Situação do cliente'];
+    if(window.CONCREDITO_DEFAULT_CASES) window.CONCREDITO_DEFAULT_CASES = window.CONCREDITO_DEFAULT_CASES.map(v22NormalizeCase);
+    const flag='concredito_v22_cases_migrated';
+    if(localStorage.getItem(flag)!=='1'){
+      // Troca a biblioteca local por uma base limpa e padronizada. Os históricos de treinamento são preservados.
+      save(KEYS.cases, (window.CONCREDITO_DEFAULT_CASES||[]).map(v22NormalizeCase));
+      localStorage.setItem(flag,'1');
+    } else {
+      const stored=load(KEYS.cases,null);
+      if(Array.isArray(stored)) save(KEYS.cases, stored.map(v22NormalizeCase));
+    }
+  }catch(e){ console.warn('V22 migration failed', e); }
+})();
+
+// Override: cartões e cabeçalho não mostram mais categoria artificial.
+caseCard = function(c, actions=false){
+  c=v22NormalizeCase(c);
+  return `<div class="caseCard" data-id="${v22Esc(c.id)}"><b>${v22Esc(c.title)}</b><small>${v22Esc(v22Meta(c,true))}</small><p>${v22Esc(c.message)}</p><div class="tags">${(c.tags||[]).slice(0,5).map(t=>`<span>${v22Esc(t)}</span>`).join('')}<span>${v22Esc(c.status||'ativo')}</span></div>${actions?`<div class="actions"><button class="secondary small editCase" data-id="${v22Esc(c.id)}">Editar</button><button class="secondary small dupCase" data-id="${v22Esc(c.id)}">Duplicar</button><button class="secondary small toggleCase" data-id="${v22Esc(c.id)}">${c.status==='inativo'?'Ativar':'Inativar'}</button><button class="secondary small delCase" data-id="${v22Esc(c.id)}">Excluir</button></div>`:''}</div>`;
+};
+const v22OldGetCases = getCases;
+getCases = function(){ return (v22OldGetCases ? v22OldGetCases() : []).map(v22NormalizeCase); };
+const v22OldSetCases = setCases;
+setCases = function(cases){ return v22OldSetCases((cases||[]).map(v22NormalizeCase)); };
+
+// Corrige seleção normal para exibir Situação em vez de categoria.
+const v22OldSelectCase = selectCase;
+selectCase = function(id){
+  v22OldSelectCase(id);
+  if(activeCase){
+    activeCase=v22NormalizeCase(activeCase);
+    if($('clientMeta')) $('clientMeta').textContent = selectedMode==='conversa' ? `${activeCase.product} • ${v22Situation(activeCase)} • Cliente inteligente ativo` : v22Meta(activeCase,true);
+    if($('historyList')) $('historyList').innerHTML=(activeCase.history||[]).map(h=>`<div class="historyLine">${v22Esc(h)}</div>`).join('')||'<p>Sem histórico.</p>';
+  }
+};
+
+// Corrige seleção de conversa realista para não mostrar categoria.
+if(typeof v17SelectConversation==='function'){
+  const v22OldV17SelectConversation = v17SelectConversation;
+  v17SelectConversation = function(id){
+    v22OldV17SelectConversation(id);
+    const conv=V17?.conversations?.find(c=>c.id===id);
+    if(conv?.case && $('clientMeta')) $('clientMeta').textContent = v22Meta(v22NormalizeCase(conv.case));
+  };
+}
+
+// Envia contexto mais correto para o Gemini.
+const v22OldClientePayload = v21ClientePayload;
+v21ClientePayload = function(conv, answer){
+  const payload = v22OldClientePayload(conv, answer);
+  const c = v22NormalizeCase(conv.case||{});
+  payload.caseData = {...payload.caseData, product:c.product, category:'Situação do cliente', situation:v22Situation(c), title:c.title, message:c.message, history:c.history||[], goal:c.goal||'', ideal:c.ideal||'', criteria:c.criteria||'', hint:c.hint||''};
+  const now=Date.now();
+  const waitMs = conv.lastClientAt ? Math.max(0, now-conv.lastClientAt) : 0;
+  const answerDelayMs = conv.lastClientAt ? Math.max(0, (conv.lastAgentAt||now)-conv.lastClientAt) : 0;
+  payload.estado = {...payload.estado,
+    tempoEsperaClienteMs: waitMs,
+    tempoRespostaAtendenteMs: answerDelayMs,
+    podeReclamarDemora: answerDelayMs > 120000,
+    regraDemora: 'Só reclame de demora se tempoRespostaAtendenteMs for maior que 120000. Se o atendente respondeu há pouco, não diga que demorou.'
+  };
+  return payload;
+};
+function v22SanitizeGeminiMessage(msg, conv){
+  let text=String(msg||'').trim();
+  const answerDelayMs = conv?.lastClientAt && conv?.lastAgentAt ? Math.max(0, conv.lastAgentAt-conv.lastClientAt) : 0;
+  const saysDelay=/demor|perdendo a confiança|perdi a confiança|falta de retorno|sem retorno|não tive retorno|ninguém.*ajud/i.test(text);
+  if(saysDelay && answerDelayMs < 120000){
+    const c=v22NormalizeCase(conv.case||{});
+    const prod=String(c.product||'').toLowerCase();
+    if(prod.includes('bolsa')) text='Entendi. Então para consultar você precisa do meu CPF, certo?';
+    else if(prod.includes('refinanciamento')) text='Entendi. Quais informações do veículo você precisa para consultar?';
+    else if(prod.includes('fgts')) text='Certo. Você precisa do meu CPF para verificar o bloqueio?';
+    else if(prod.includes('trabalhador')) text='Entendi. Qual é o próximo passo para continuar?';
+    else text='Entendi. Qual é o próximo passo agora?';
+  }
+  // Evita termos artificiais voltando pela IA.
+  text=text.replace(/autorização na CTPS/gi,'processo pelo aplicativo')
+           .replace(/pendência/gi,'etapa que ficou em aberto');
+  return text;
+}
+const v22OldGeminiReply = v21GeminiClientReply;
+v21GeminiClientReply = async function(conv, ev, answer){
+  const rep = await v22OldGeminiReply(conv, ev, answer);
+  if(rep && rep.text) rep.text = v22SanitizeGeminiMessage(rep.text, conv);
+  return rep;
+};
+
+// Corrige o envio realista: marca o tempo da resposta antes de zerar espera e só então agenda retorno.
+v17SendAnswer = function(){
+  const conv=V17.conversations.find(c=>c.id===V17.activeId); if(!conv) return;
+  const answer=($('answerBox')?.value||'').trim();
+  if(answer.length<2){ v19ShowValidation('Digite uma resposta antes de enviar.'); return; }
+  clearTimeout(conv.nagTimer);
+  const answeredAt=Date.now();
+  conv.lastAgentAt=answeredAt;
+  conv.status='awaiting_client';
+  conv.botNoticeSent=false;
+  const oldActive=activeCase, oldReal=realistic; activeCase=v22NormalizeCase(conv.case); realistic=conv.realistic;
+  v17AddMessage(conv,'agent',answer); conv.answerLog.push(answer); $('answerBox').value='';
+  const ev=evaluate(answer,conv.case); applyRealisticState(ev,answer);
+  // Depois de responder, a espera do cliente acabou. A próxima cobrança só pode nascer após nova mensagem do cliente.
+  conv.lastClientAt=null;
+  activeCase=oldActive; realistic=oldReal;
+  $('sendAnswerBtn').disabled=true; $('answerBox').disabled=true;
+  const cfg=v17DifficultyConfig(); const delay=cfg.replyMin+Math.random()*(cfg.replyMax-cfg.replyMin);
+  clearTimeout(conv.replyTimer); conv.replyTimer=setTimeout(async()=>{
+    if(conv.closed||conv.awaitingClose) return;
+    const rep=await v21GeminiClientReply(conv,ev,answer);
+    if(conv.closed||conv.awaitingClose) return;
+    v17AddMessage(conv,'client',rep.text);
+    if(rep.end){ v17CompleteConversation(conv,ev,answer,rep.outcome||'concluído'); }
+    if(V17.activeId===conv.id && !conv.awaitingClose){ $('sendAnswerBtn').disabled=false; $('answerBox').disabled=false; $('answerBox').focus(); }
+  }, delay);
+};
+
+// A cobrança só roda quando o cliente realmente está aguardando o atendente.
+const v22OldScheduleNag = v17ScheduleNag;
+v17ScheduleNag = function(conv){
+  if(!conv || conv.status!=='awaiting_agent' || !conv.lastClientAt) return;
+  return v22OldScheduleNag(conv);
+};
+
+setTimeout(()=>{ try{ fillSelects?.(); refreshAll?.(); if(selectedMode) renderQueue?.(); }catch(e){} },0);
+console.log('ConCrédito Simulador - V22 Base Real + IA Nível 3 Controlada carregada');
