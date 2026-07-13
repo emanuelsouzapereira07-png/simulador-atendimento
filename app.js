@@ -1805,3 +1805,54 @@ v17ScheduleNag = function(conv){
 
 setTimeout(()=>{ try{ fillSelects?.(); refreshAll?.(); if(selectedMode) renderQueue?.(); }catch(e){} },0);
 console.log('ConCrédito Simulador - V22 Base Real + IA Nível 3 Controlada carregada');
+
+/* =====================================================
+   V23 - IA DEFINITIVA: payload completo + telemetria do controlador
+   ===================================================== */
+const V23={version:'v23_ia_controlador_cliente'};
+const v23OldPayload=v21ClientePayload;
+v21ClientePayload=function(conv,answer){
+  const payload=v23OldPayload(conv,answer);
+  const st=conv.realistic||{};
+  payload.caseData.situation=conv.case?.situation||conv.case?.category||'';
+  payload.caseData.forbiddenTopics=conv.case?.forbiddenTopics||[];
+  payload.estado.tempoRespostaAtendenteMs=Math.max(0,(conv.lastAgentAt||Date.now())-(conv.lastClientAt||conv.createdAt||Date.now()));
+  payload.estado.podeReclamarDemora=payload.estado.tempoRespostaAtendenteMs>=120000;
+  payload.estado.humor=st.mood;
+  payload.estado.confianca=st.trust;
+  payload.estado.paciencia=st.patience;
+  payload.estado.interesse=st.interest;
+  return payload;
+};
+const v23OldGeminiReply=v21GeminiClientReply;
+v21GeminiClientReply=async function(conv,ev,answer){
+  try{
+    const r=await fetch('/api/cliente',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v21ClientePayload(conv,answer))});
+    if(!r.ok) throw new Error('API indisponível');
+    const data=await r.json();
+    if(!data||!data.message||data.ok===false) throw new Error(data?.analysis?.note||'Fallback');
+    const st=conv.realistic||{};
+    if(typeof data.trust==='number') st.trust=Math.max(0,Math.min(100,Math.round(data.trust)));
+    if(typeof data.patience==='number') st.patience=Math.max(0,Math.min(100,Math.round(data.patience)));
+    if(data.mood) st.mood=data.mood;
+    if(data.stage) st.stage=data.stage;
+    st.memory={...(st.memory||{}),...(data.memory||{})};
+    st.turnAnalyses=st.turnAnalyses||[];
+    st.turnAnalyses.push({
+      turn:st.turns||0,score:data.analysis?.quality??ev.total,answer,
+      entries:[
+        {metric:'Análise semântica',reason:data.analysis?.note||'Resposta analisada no contexto completo.'},
+        {metric:'Decisão do controlador',reason:data.controller?.decision||'não informada'},
+        ...(data.analysis?.missing?.length?[{metric:'Pontos pendentes',reason:data.analysis.missing.join(', ')}]:[])
+      ],
+      alternative:'Responder ao objetivo do cliente com clareza, segurança e próximo passo concreto.'
+    });
+    st.events=st.events||[];
+    st.events.push(`V23 Controlador: ${data.controller?.decision||'contextual'} | ${data.analysis?.resolution||'parcial'} | qualidade ${data.analysis?.quality??ev.total}%.`);
+    return {text:String(data.message).trim(),end:!!data.end,outcome:data.outcome||'concluído'};
+  }catch(err){
+    conv.realistic?.events?.push?.(`Fallback local acionado: ${err.message}.`);
+    return v23OldGeminiReply(conv,ev,answer);
+  }
+};
+console.log('ConCrédito Simulador - V23 IA Controlador + Cliente carregada');
