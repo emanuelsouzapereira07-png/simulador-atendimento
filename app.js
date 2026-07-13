@@ -1520,7 +1520,7 @@ function v21ClientePayload(conv, answer){
 }
 async function v21GeminiClientReply(conv, ev, answer){
   try{
-    const r=await fetch('/api/cliente',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v21ClientePayload(conv,answer))});
+    const r=await fetch('https://backend-do-simulador-con-cr-dito-jb.vercel.app/api/cliente',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v21ClientePayload(conv,answer))});
     if(!r.ok) throw new Error('API indisponível');
     const data=await r.json();
     if(!data || !data.message || data.ok===false) throw new Error(data?.analysis?.note||'Fallback');
@@ -1827,7 +1827,7 @@ v21ClientePayload=function(conv,answer){
 const v23OldGeminiReply=v21GeminiClientReply;
 v21GeminiClientReply=async function(conv,ev,answer){
   try{
-    const r=await fetch('/api/cliente',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v21ClientePayload(conv,answer))});
+    const r=await fetch('https://backend-do-simulador-con-cr-dito-jb.vercel.app/api/cliente',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v21ClientePayload(conv,answer))});
     if(!r.ok) throw new Error('API indisponível');
     const data=await r.json();
     if(!data||!data.message||data.ok===false) throw new Error(data?.analysis?.note||'Fallback');
