@@ -384,7 +384,7 @@ function realisticClientReply(c,ev,answer){
 function buildSupervisor(ev, answer, outcome, finalScore){
  const st=realistic || {events:[],bestAnswer:answer,worstAnswer:answer,bestScore:ev.total,worstScore:ev.total};
  const resultLabel = outcome==='aceitou'?'🟢 Cliente convencido':outcome==='concluído'?'🟡 Atendimento concluído':outcome==='pediu atendimento humano'?'🟠 Cliente pediu outro atendimento':'🔴 Cliente desistiu';
- const timeline = (st.events||[]).slice(-6).map(e=>`<li>${e}</li>`).join('');
+ const timeline = (st.events||[]).slice(-6).map(e=>`<li>${v17Esc(v24SafeTechnicalText(e))}</li>`).join('');
  const bars = Object.entries(ev.metrics).map(([k,v])=>{
    const why=(ev.reasons&&ev.reasons[k]&&ev.reasons[k][0])?`<small>${ev.reasons[k][0]}</small>`:'';
    return `<div class="metricLine"><span>${k}</span><div class="bar"><i style="width:${Math.round(v)}%"></i></div><b>${Math.round(v)}%</b>${why}</div>`;
@@ -392,7 +392,7 @@ function buildSupervisor(ev, answer, outcome, finalScore){
  const best = (st.bestScore>=65 && st.bestAnswer) ? st.bestAnswer : 'Nenhuma resposta atingiu um padrão satisfatório de atendimento.';
  const worst = st.worstAnswer || answer;
  const worstWhy = ev.flags.offensive ? 'Linguagem inadequada/ofensiva.' : ev.flags.forbiddenShort ? 'Resposta curta/inadequada que não acolheu, não explicou e não transmitiu segurança.' : ev.flags.badShort ? 'Resposta muito curta para a situação do cliente.' : 'Foi a resposta que mais reduziu a confiança do cliente.';
- const detailedErrors=(st.turnAnalyses||[]).map(t=>`<div class="caseCard"><b>Mensagem ${t.turn} • Nota ${t.score}%</b><p><b>Resposta:</b> ${t.answer}</p>${t.entries.length?`<ul>${t.entries.map(e=>`<li><b>${e.metric}:</b> ${e.reason}</li>`).join('')}</ul>`:'<p>Nenhum erro crítico nessa mensagem.</p>'}<p><b>Como poderia responder:</b> ${t.alternative}</p></div>`).join('');
+ const detailedErrors=(st.turnAnalyses||[]).map(t=>`<div class="caseCard"><b>Mensagem ${t.turn} • Nota ${t.score}%</b><p><b>Resposta:</b> ${t.answer}</p>${t.entries.length?`<ul>${t.entries.map(e=>`<li><b>${e.metric}:</b> ${v17Esc(v24SafeTechnicalText(e.reason))}</li>`).join('')}</ul>`:'<p>Nenhum erro crítico nessa mensagem.</p>'}<p><b>Como poderia responder:</b> ${t.alternative}</p></div>`).join('');
  const memoryItems=Object.entries(st.memory||{}).filter(([,v])=>v).map(([k,v])=>`<span>${k}: ${v}</span>`).join('');
  return `<h3>Supervisor IA • Nota ${finalScore}%</h3>
  <p><b>Resultado:</b> ${resultLabel}</p>
@@ -971,7 +971,7 @@ function v18OpenConversation(resultId,index){
   const r=load(KEYS.results).find(x=>x.id===resultId); if(!r) return; const c=(r.cases||[])[index]; if(!c) return;
   const msgs=(c.conversation||[]).map(m=>`<div class="msg ${m.kind==='agent'?'agentMsg':'clientMsg'}"><small>${m.at?new Date(m.at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):''}</small><br>${v17Esc(m.text||'')}</div>`).join('')||'<p>Conversa completa não foi gravada nesta versão antiga.</p>';
   const analyses=(c.analyses||[]).map(a=>`<div class="caseCard"><b>Mensagem ${a.turn} • Nota ${a.score}%</b><p><b>Resposta:</b> ${v17Esc(a.answer||'')}</p>${(a.entries||[]).length?`<ul>${a.entries.map(e=>`<li><b>${v17Esc(e.metric)}:</b> ${v17Esc(e.reason)}</li>`).join('')}</ul>`:'<p>Sem erro crítico registrado.</p>'}<p><b>Alternativa:</b> ${v17Esc(a.alternative||'')}</p></div>`).join('');
-  const timeline=(c.events||[]).map(e=>`<li>${v17Esc(e)}</li>`).join('');
+  const timeline=(c.events||[]).map(e=>`<li>${v17Esc(v24SafeTechnicalText(e))}</li>`).join('');
   $('modalTitle').textContent=`Conversa • ${c.clientName||'Cliente'} • ${c.score}%`;
   $('modalBody').innerHTML=`<div class="auditSummary"><div><span>Caso</span><b>${v17Esc(c.title||'')}</b></div><div><span>Resultado</span><b>${v17Esc(c.outcome||'')}</b></div><div><span>Tempo</span><b>${c.time||0}s</b></div><div><span>Nota</span><b>${c.score}%</b></div></div><h3>Conversa completa</h3><div class="auditChat">${msgs}</div><h3>Linha do tempo</h3><ul class="timeline">${timeline||'<li>Sem eventos registrados.</li>'}</ul><h3>Análise das respostas</h3><div class="cardsList compact">${analyses||'<p>Sem análise detalhada nesta versão antiga.</p>'}</div><h3>Supervisor IA</h3><div class="supervisor">${c.supervisorHtml||'<p>Sem relatório salvo.</p>'}</div><div class="actions"><button class="secondary" id="backTraining">Voltar ao treinamento</button></div>`;
   $('backTraining').onclick=()=>v18OpenTraining(resultId);
@@ -1495,6 +1495,14 @@ console.log('ConCrédito Simulador - V20 IA Contextual Nível 2 carregada');
    ===================================================== */
 const V21 = { version:'v21_ia_nivel_3_gestor_unificado' };
 function v21Plain(s){ return String(s||'').trim(); }
+function v24SafeTechnicalText(value){
+  const raw=String(value||'').trim();
+  if(!raw) return '';
+  if(/quota|rate[- ]?limit|billing|generativelanguage\.googleapis\.com|gemini-2\.0-flash|resource_exhausted|please retry|api gemini não respondeu|you exceeded/i.test(raw)){
+    return 'IA principal temporariamente indisponível. O atendimento continuou pelo modo de contingência.';
+  }
+  return raw;
+}
 function v21ConversationHistory(conv){
   return (conv?.messages||[]).map(m=>({kind:m.kind, text:m.text, at:m.at}));
 }
@@ -1520,7 +1528,7 @@ function v21ClientePayload(conv, answer){
 }
 async function v21GeminiClientReply(conv, ev, answer){
   try{
-    const r=await fetch('https://backend-do-simulador-con-cr-dito-jb.vercel.app/api/cliente',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v21ClientePayload(conv,answer))});
+    const r=await fetch('/api/cliente',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v21ClientePayload(conv,answer))});
     if(!r.ok) throw new Error('API indisponível');
     const data=await r.json();
     if(!data || !data.message || data.ok===false) throw new Error(data?.analysis?.note||'Fallback');
@@ -1538,7 +1546,7 @@ async function v21GeminiClientReply(conv, ev, answer){
   }catch(err){
     const oldA=activeCase, oldR=realistic; activeCase=conv.case; realistic=conv.realistic;
     const rep=realisticClientReply(conv.case,ev,answer);
-    realistic?.events?.push?.(`Fallback local V20 usado porque a API Gemini não respondeu: ${err.message}.`);
+    realistic?.events?.push?.('Modo de contingência local acionado automaticamente.');
     activeCase=oldA; realistic=oldR;
     return rep;
   }
@@ -1824,13 +1832,12 @@ v21ClientePayload=function(conv,answer){
   payload.estado.interesse=st.interest;
   return payload;
 };
-const v23OldGeminiReply=v21GeminiClientReply;
 v21GeminiClientReply=async function(conv,ev,answer){
   try{
     const r=await fetch('https://backend-do-simulador-con-cr-dito-jb.vercel.app/api/cliente',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v21ClientePayload(conv,answer))});
     if(!r.ok) throw new Error('API indisponível');
     const data=await r.json();
-    if(!data||!data.message||data.ok===false) throw new Error(data?.analysis?.note||'Fallback');
+    if(!data||!data.message) throw new Error('Resposta inválida da API');
     const st=conv.realistic||{};
     if(typeof data.trust==='number') st.trust=Math.max(0,Math.min(100,Math.round(data.trust)));
     if(typeof data.patience==='number') st.patience=Math.max(0,Math.min(100,Math.round(data.patience)));
@@ -1838,21 +1845,28 @@ v21GeminiClientReply=async function(conv,ev,answer){
     if(data.stage) st.stage=data.stage;
     st.memory={...(st.memory||{}),...(data.memory||{})};
     st.turnAnalyses=st.turnAnalyses||[];
+    const safeNote=v24SafeTechnicalText(data.analysis?.note)||'Resposta analisada no contexto completo.';
+    const safeReason=v24SafeTechnicalText(data.controller?.reason)||data.controller?.decision||'Decisão contextual.';
     st.turnAnalyses.push({
       turn:st.turns||0,score:data.analysis?.quality??ev.total,answer,
       entries:[
-        {metric:'Análise semântica',reason:data.analysis?.note||'Resposta analisada no contexto completo.'},
-        {metric:'Decisão do controlador',reason:data.controller?.decision||'não informada'},
+        {metric:'Análise semântica',reason:safeNote},
+        {metric:'Decisão do controlador',reason:safeReason},
         ...(data.analysis?.missing?.length?[{metric:'Pontos pendentes',reason:data.analysis.missing.join(', ')}]:[])
       ],
       alternative:'Responder ao objetivo do cliente com clareza, segurança e próximo passo concreto.'
     });
     st.events=st.events||[];
-    st.events.push(`V23 Controlador: ${data.controller?.decision||'contextual'} | ${data.analysis?.resolution||'parcial'} | qualidade ${data.analysis?.quality??ev.total}%.`);
+    if(data.fallback) st.events.push('Modo de contingência local acionado automaticamente.');
+    else st.events.push(`V24 Controlador: ${data.controller?.decision||'contextual'} | ${data.analysis?.resolution||'parcial'} | qualidade ${data.analysis?.quality??ev.total}%.`);
     return {text:String(data.message).trim(),end:!!data.end,outcome:data.outcome||'concluído'};
   }catch(err){
-    conv.realistic?.events?.push?.(`Fallback local acionado: ${err.message}.`);
-    return v23OldGeminiReply(conv,ev,answer);
+    console.error('[simulador] Falha ao consultar /api/cliente:',err);
+    const oldA=activeCase, oldR=realistic; activeCase=conv.case; realistic=conv.realistic;
+    const rep=realisticClientReply(conv.case,ev,answer);
+    conv.realistic?.events?.push?.('Modo de contingência local acionado automaticamente.');
+    activeCase=oldA; realistic=oldR;
+    return rep;
   }
 };
-console.log('ConCrédito Simulador - V23 IA Controlador + Cliente carregada');
+console.log('ConCrédito Simulador - V24 IA resiliente carregada');
