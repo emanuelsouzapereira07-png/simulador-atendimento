@@ -1868,7 +1868,21 @@ function v31Esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':
 function v31CsatAverage(cases=[]){const vals=cases.map(c=>Number(c.csat)).filter(n=>n>=1&&n<=5);return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;}
 function v31CsatText(avg){return avg?`${avg.toFixed(2)} / 5`:'—';}
 function v31Transcript(conv){return (conv?.messages||[]).filter(m=>m.kind!=='system').map(m=>({kind:m.kind,text:m.text,at:m.at}));}
-async function v31Request(path,payload){const r=await fetch(`${V31_API}${path}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json();}
+async function v31Request(path,payload){
+  const directRoutes={
+    '/api/csat':'/api/cliente?action=csat',
+    '/api/supervisor-sessao':'/api/cliente?action=supervisor-sessao',
+    '/api/analisar':'/api/cliente?action=analisar'
+  };
+  const resolvedPath=directRoutes[path]||path;
+  const r=await fetch(`${V31_API}${resolvedPath}`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)
+  });
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
 function v31FallbackCsat(outcome,score){const o=String(outcome||'').toLowerCase();if(/desistiu|demora|paciência|paciencia/.test(o))return 1;if(score>=88)return 5;if(score>=72)return 4;if(score>=50)return 3;if(score>=30)return 2;return 1;}
 function v31AddSystem(conv,text){
   conv.messages.push({kind:'system',text,at:Date.now()});
@@ -1883,7 +1897,7 @@ v17SelectConversation=function(id){
   if(conv.awaitingClose){$('supervisorBox').innerHTML=conv.csat?`<div class="csatReceipt"><span>Avaliação registrada pelo cliente</span><strong>${conv.csat} — ${V31_LABELS[conv.csat]}</strong><small>O feedback técnico será exibido ao final da sessão.</small></div>`:'<div class="csatReceipt"><span>Pesquisa de satisfação enviada</span><strong>Aguardando avaliação...</strong></div>';$('supervisorBox').classList.remove('hidden');}
 };
 async function v31EvaluateConversation(conv,outcome,score){
-  try{return await v31Request('/api/csat',{caseData:conv.case,conversation:v31Transcript(conv),outcome,timeSeconds:Math.round((Date.now()-(conv.createdAt||Date.now()))/1000)});}
+  try{return await v31Request('/api/cliente?action=csat',{caseData:conv.case,conversation:v31Transcript(conv),outcome,timeSeconds:Math.round((Date.now()-(conv.createdAt||Date.now()))/1000)});}
   catch(e){const rating=v31FallbackCsat(outcome,score);return {rating,label:V31_LABELS[rating],reason:'Contingência local',fallback:true};}
 }
 function v31SaveLiveCase(conv,score,outcome){
@@ -1940,7 +1954,7 @@ finishSession=async function(){
   clearIdleTimers();clearInterval(timer);if(V17?.live)v17StopLiveShift();
   if(selectedMode==='conversa'&&V17?.conversations){for(const conv of V17.conversations){clearTimeout(conv.nagTimer);clearTimeout(conv.replyTimer);if(conv.csatPromise)await conv.csatPromise.catch(()=>{});if(!conv.savedToSession){const score=conv.score||(conv.answerLog?.length?55:20);conv.outcome=conv.outcome||'sessão finalizada';if(!conv.csat){const cs=await v31EvaluateConversation(conv,conv.outcome,score);conv.csat=Math.max(1,Math.min(5,Math.round(Number(cs.rating)||3)));}v31SaveLiveCase(conv,score,conv.outcome);}}}
   const avg=v31CsatAverage(currentSession.cases);let supervisorFeedback='';
-  try{const sup=await v31Request('/api/supervisor-sessao',{name,mode:$('modeBadge').textContent,csatAverage:Number(avg.toFixed(2)),cases:currentSession.cases});supervisorFeedback=sup.feedback||'';}catch(e){supervisorFeedback='Analise seus atendimentos observando se cada cliente recebeu uma orientação segura e um próximo passo claro. Mantenha a cordialidade e a objetividade, mas confirme a resolução da dúvida antes de encerrar a conversa.';}
+  try{const sup=await v31Request('/api/cliente?action=supervisor-sessao',{name,mode:$('modeBadge').textContent,csatAverage:Number(avg.toFixed(2)),cases:currentSession.cases});supervisorFeedback=sup.feedback||'';}catch(e){supervisorFeedback='Analise seus atendimentos observando se cada cliente recebeu uma orientação segura e um próximo passo claro. Mantenha a cordialidade e a objetividade, mas confirme a resolução da dúvida antes de encerrar a conversa.';}
   const result={id:currentSession.id,name,team:$('sellerTeam').value,mode:$('modeBadge').textContent,average:Math.round(avg*20),csatAverage:Number(avg.toFixed(2)),csatCount:currentSession.cases.filter(c=>c.csat).length,xp:currentSession.xp,solved:currentSession.solved,cases:currentSession.cases,supervisorFeedback,startedAt:currentSession.start,at:new Date().toISOString()};
   const results=load(KEYS.results);results.unshift(result);save(KEYS.results,results);notify('Treinamento finalizado',`${name} encerrou a sessão com CSAT ${v31CsatText(avg)}.`);currentSession=null;refreshAll();v31RenderReport(result);
 };
@@ -1968,3 +1982,4 @@ console.log('ConCrédito Simulador - V31 CSAT + Supervisor Virtual carregada');
   window.addEventListener('beforeunload',()=>{});
 })();
 console.log('ConCrédito Simulador - V33 encerramento inteligente + cargos por volume carregada');
+console.log('ConCrédito Simulador - V34 rotas compactas CSAT/Supervisor corrigidas carregada');
