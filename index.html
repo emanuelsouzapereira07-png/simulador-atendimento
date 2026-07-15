@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Central ConCrédito v21</title>
+  <title>Central ConCrédito v31 — CSAT</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -20,9 +20,9 @@
     <section class="screen active" id="homeScreen">
       <div class="hero">
         <div class="card heroCard">
-          <span class="badge">v21 IA nível 3</span>
+          <span class="badge">v31 CSAT + Supervisor IA</span>
           <h1>Treine atendimento, vendas e condução comercial em um só lugar.</h1>
-          <p>Escolha um modo, pratique casos reais da ConCrédito e receba avaliação por clareza, empatia, segurança, negociação e fechamento.</p>
+          <p>Escolha um modo, pratique casos reais da ConCrédito e simule atendimentos reais, receba avaliações CSAT dos clientes e revise o desempenho ao final da sessão.</p>
           <div class="grid two">
             <label>Nome do colaborador *<input id="sellerName" placeholder="Digite seu nome" required></label>
             <label>Time<select id="sellerTeam"><option>Suporte</option><option>Savana</option><option>Santo Crédito</option><option>Construindo Sonhos</option><option>Tropa de Elite</option><option>Esquadrão Fênix</option></select></label>
@@ -33,7 +33,7 @@
             <button class="mode" data-mode="treinamento"><b>📚 Treinamento</b><span>Pratique casos sem pressão de tempo.</span></button>
           </div>
           <div class="grid two configRow">
-            <label>Dificuldade<select id="difficultyFilter"><option value="todos">Todas</option><option>Júnior</option><option>Pleno</option><option>Sênior</option></select></label>
+            <label>Nível do atendente<select id="difficultyFilter"><option>Júnior</option><option selected>Pleno</option><option>Sênior</option></select></label>
             <label>Tempo do Plantão<select id="shiftTime"><option value="180">3 minutos</option><option value="300" selected>5 minutos</option><option value="600">10 minutos</option></select></label>
           </div>
           <div class="actions"><button class="primary" id="startBtn">Iniciar</button><button class="secondary" id="openHowToBtn">Como jogar</button><label class="soundSwitch"><input type="checkbox" id="soundToggle" checked> Sons</label></div>
@@ -41,14 +41,14 @@
         <aside class="card side">
           <h2>Seu painel</h2>
           <div class="level"><b id="levelLabel">Nível 1</b><span id="xpText">0 XP acumulado</span><div><i id="xpBar"></i></div></div>
-          <div class="miniStats"><div><span>Treinos</span><b id="homeTrainings">0</b></div><div><span>Média</span><b id="homeAvg">0%</b></div><div><span>Casos ativos</span><b id="homeCases">0</b></div><div><span>Notificações</span><b id="homeNotifications">0</b></div></div>
+          <div class="miniStats"><div><span>Treinos</span><b id="homeTrainings">0</b></div><div><span>Média CSAT</span><b id="homeAvg">—</b></div><div><span>Casos ativos</span><b id="homeCases">0</b></div><div><span>Notificações</span><b id="homeNotifications">0</b></div></div>
           <div class="noticeBox"><h3>Central de notificações</h3><div id="notificationList"></div></div>
         </aside>
       </div>
     </section>
 
     <section class="screen" id="gameScreen">
-      <div class="hud card"><div><span class="badge" id="modeBadge">Plantão</span><h2 id="gameTitle">Atendimento</h2></div><div class="metrics"><div><span>Tempo</span><b id="timerLabel">--:--</b></div><div><span>XP</span><b id="xpLabel">0</b></div><div><span>Média</span><b id="avgLabel">0%</b></div><div><span>Resolvidos</span><b id="solvedLabel">0</b></div></div></div>
+      <div class="hud card"><div><span class="badge" id="modeBadge">Plantão</span><h2 id="gameTitle">Atendimento</h2></div><div class="metrics"><div><span>Tempo</span><b id="timerLabel">--:--</b></div><div><span>XP</span><b id="xpLabel">0</b></div><div><span>CSAT</span><b id="avgLabel">—</b></div><div><span>Resolvidos</span><b id="solvedLabel">0</b></div></div></div>
       <div class="workspace">
         <aside class="card queue"><div class="panelTitle"><h3>Conversas / Casos</h3><button class="secondary small" id="newRandomCase">Novo</button></div><div id="caseQueue"></div></aside>
         <section class="card service">
@@ -71,6 +71,20 @@
     <section class="screen" id="casePanelScreen"><div class="card loginBox" id="caseLogin"><h1>Painel de Casos</h1><p>Acesso para a equipe cadastrar, editar, duplicar, importar e exportar casos.</p><label>Senha<input id="casePassword" type="password" placeholder="Senha do Painel de Casos"></label><button class="primary" id="caseLoginBtn">Entrar</button><p class="hintText">Acesso restrito à equipe autorizada.</p></div><div class="card hidden" id="casePanel"><div class="panelTitle"><div><span class="badge">Painel de Casos</span><h2>Gerenciar casos</h2></div><div class="actions"><button class="secondary" id="importCasesBtn">Importar CSV/JSON</button><button class="secondary" id="exportCasesCsvBtn">Exportar CSV</button><button class="secondary" id="exportCasesJsonBtn">Exportar JSON</button><button class="ghost" id="caseLogoutBtn">Sair</button></div></div><input type="file" id="caseFileInput" accept=".csv,.json" class="hidden"><div class="split"><form id="caseForm" class="formGrid"><input type="hidden" id="caseId"><label>Nome do caso<input id="caseTitle" required></label><label>Produto<select id="caseProduct"></select></label><label>Categoria<select id="caseCategory"></select></label><label>Dificuldade<select id="caseDifficulty"><option>Júnior</option><option>Pleno</option><option>Sênior</option></select></label><label>Perfil do cliente<select id="caseProfile"></select></label><label>Status<select id="caseStatus"><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></label><label>Modos<div class="checks"><label><input type="checkbox" value="plantao" class="modeCheck"> Plantão</label><label><input type="checkbox" value="conversa" class="modeCheck"> Simulação Realista</label><label><input type="checkbox" value="treinamento" class="modeCheck"> Treinamento</label></div></label><label>Tags<input id="caseTags" placeholder="CTPS, valor baixo, golpe..."></label><label class="wide">Mensagem inicial<textarea id="caseMessage" required></textarea></label><label class="wide">Histórico<textarea id="caseHistory" placeholder="Uma linha por item do histórico"></textarea></label><label class="wide">Objetivo do treinamento<textarea id="caseGoal"></textarea></label><label class="wide">Resposta ideal<textarea id="caseIdeal"></textarea></label><label class="wide">Critérios de avaliação<textarea id="caseCriteria"></textarea></label><label class="wide">Dica para o colaborador<textarea id="caseHint"></textarea></label><div class="actions wide"><button class="primary" type="submit">Salvar caso</button><button class="secondary" type="button" id="clearCaseForm">Limpar</button></div></form><div><div class="filters"><input id="casePanelSearch" placeholder="Buscar casos"><select id="casePanelProduct"></select></div><div id="casePanelList" class="cardsList compact"></div></div></div></div></section>
 
     <section class="screen" id="managerScreen"><div class="card loginBox" id="managerLogin"><h1>Painel Gestor</h1><p>Acesso restrito para você e sua gerente acompanharem desempenho, estatísticas, notificações e histórico.</p><label>Senha<input id="managerPassword" type="password" placeholder="Senha do Painel Gestor"></label><button class="primary" id="managerLoginBtn">Entrar</button><p class="hintText">Acesso restrito à gestão.</p></div><div class="card hidden" id="managerPanel"><div class="panelTitle"><div><span class="badge">Painel Gestor</span><h2>Dashboard</h2></div><div class="actions"><button class="secondary" id="exportResultsCsvBtn">Exportar resultados</button><button class="ghost" id="managerLogoutBtn">Sair</button></div></div><div class="tabs"><button class="tab activeTab" data-tab="overview">Visão geral</button><button class="tab" data-tab="caseStats">Estatísticas dos casos</button><button class="tab" data-tab="audit">Histórico de alterações</button><button class="tab" data-tab="notices">Notificações</button></div><div id="managerOverview" class="tabPanel"><div class="finalGrid" id="managerCards"></div><div class="split"><div><h3>Ranking</h3><div id="rankingList" class="cardsList compact"></div></div><div><h3>Últimos treinamentos</h3><div id="resultsList" class="cardsList compact"></div></div></div></div><div id="managerCaseStats" class="tabPanel hidden"><div id="caseStatsList" class="cardsList"></div></div><div id="managerAudit" class="tabPanel hidden"><div id="auditList" class="cardsList"></div></div><div id="managerNotices" class="tabPanel hidden"><form id="noticeForm" class="formGrid"><label>Título<input id="noticeTitle" required></label><label class="wide">Mensagem<textarea id="noticeMessage" required></textarea></label><div class="actions wide"><button class="primary">Publicar notificação</button></div></form><div id="managerNoticeList" class="cardsList"></div></div></div></section>
+    <section class="screen" id="sessionReportScreen">
+      <div class="card sessionReportCard">
+        <div class="reportHero">
+          <div><span class="badge">Treinamento concluído</span><h1>Revisão da sessão</h1><p>Veja a percepção dos clientes e o feedback técnico do Supervisor Virtual.</p></div>
+          <div class="csatBig"><span>Avaliação dos clientes</span><strong id="reportCsatAverage">—</strong><small>de 5</small></div>
+        </div>
+        <div class="reportStats" id="reportStats"></div>
+        <div class="csatDistribution" id="reportDistribution"></div>
+        <div class="supervisorReport"><span class="badge">Supervisor Virtual</span><h2>Feedback da IA</h2><div id="reportSupervisorText" class="supervisorText">Preparando análise...</div></div>
+        <div class="reportCases"><div class="panelTitle"><h2>Revisar atendimentos</h2><span id="reportCasesCount"></span></div><div id="reportCasesList" class="cardsList"></div></div>
+        <div class="actions center"><button class="primary" id="reportHomeBtn">Voltar ao início</button></div>
+      </div>
+    </section>
+
   </main>
   <script src="cases.js"></script>
   <script src="app.js"></script>

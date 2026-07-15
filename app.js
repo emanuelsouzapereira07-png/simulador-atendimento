@@ -118,7 +118,7 @@ function show(id){ $$('.screen').forEach(s=>s.classList.remove('active')); $(id)
 function productOptions(includeAll=false){ return `${includeAll?'<option value="todos">Todos os produtos</option>':''}${window.CONCREDITO_PRODUCTS.map(p=>`<option>${p}</option>`).join('')}`; }
 function fillSelects(){ ['caseProduct','casePanelProduct'].forEach(id=>$(id).innerHTML=productOptions(id!=='caseProduct')); $('caseCategory').innerHTML=window.CONCREDITO_CATEGORIES.map(x=>`<option>${x}</option>`).join(''); $('caseProfile').innerHTML=window.CONCREDITO_PROFILES.map(x=>`<option>${x}</option>`).join(''); }
 function activeCases(){ return getCases().filter(c=>c.status!=='inativo'); }
-function filteredCases(mode=selectedMode){ const diff=$('difficultyFilter').value; return activeCases().filter(c=>normalizeModes(c.modes).includes(mode) && (diff==='todos'||normalizeDifficulty(c.difficulty)===diff)); }
+function filteredCases(mode=selectedMode){ return activeCases().filter(c=>normalizeModes(c.modes).includes(mode)); }
 function caseCard(c, actions=false){ return `<div class="caseCard" data-id="${c.id}"><b>${c.title}</b><small>${c.product} • ${c.category} • ${c.difficulty} • ${c.profile}</small><p>${c.message}</p><div class="tags">${(c.tags||[]).slice(0,5).map(t=>`<span>${t}</span>`).join('')}<span>${c.status||'ativo'}</span></div>${actions?`<div class="actions"><button class="secondary small editCase" data-id="${c.id}">Editar</button><button class="secondary small dupCase" data-id="${c.id}">Duplicar</button><button class="secondary small toggleCase" data-id="${c.id}">${c.status==='inativo'?'Ativar':'Inativar'}</button><button class="secondary small delCase" data-id="${c.id}">Excluir</button></div>`:''}</div>`; }
 function refreshHome(){ const results=load(KEYS.results); const xp=Number(localStorage.getItem(KEYS.xp)||0); const avg=results.length?Math.round(results.reduce((s,r)=>s+r.average,0)/results.length):0; $('homeTrainings').textContent=results.length; $('homeAvg').textContent=avg+'%'; $('homeCases').textContent=activeCases().length; $('xpText').textContent=`${xp} XP acumulado`; $('xpBar').style.width=Math.min(100,xp%100)+'%'; $('levelLabel').textContent='Nível '+(Math.floor(xp/100)+1); }
 function refreshNotifications(){ const ns=load(KEYS.notifications); const unread=ns.filter(n=>!n.read).length; $('notificationCount').textContent=unread; $('homeNotifications').textContent=ns.length; $('notificationList').innerHTML=ns.slice(0,5).map(n=>`<div class="notice"><b>${n.title}</b><p>${n.message}</p><small>${new Date(n.at).toLocaleString('pt-BR')}</small></div>`).join('') || '<p>Nenhuma notificação.</p>'; }
@@ -384,7 +384,7 @@ function realisticClientReply(c,ev,answer){
 function buildSupervisor(ev, answer, outcome, finalScore){
  const st=realistic || {events:[],bestAnswer:answer,worstAnswer:answer,bestScore:ev.total,worstScore:ev.total};
  const resultLabel = outcome==='aceitou'?'🟢 Cliente convencido':outcome==='concluído'?'🟡 Atendimento concluído':outcome==='pediu atendimento humano'?'🟠 Cliente pediu outro atendimento':'🔴 Cliente desistiu';
- const timeline = (st.events||[]).slice(-6).map(e=>`<li>${v17Esc(v24SafeTechnicalText(e))}</li>`).join('');
+ const timeline = (st.events||[]).slice(-6).map(e=>`<li>${e}</li>`).join('');
  const bars = Object.entries(ev.metrics).map(([k,v])=>{
    const why=(ev.reasons&&ev.reasons[k]&&ev.reasons[k][0])?`<small>${ev.reasons[k][0]}</small>`:'';
    return `<div class="metricLine"><span>${k}</span><div class="bar"><i style="width:${Math.round(v)}%"></i></div><b>${Math.round(v)}%</b>${why}</div>`;
@@ -392,7 +392,7 @@ function buildSupervisor(ev, answer, outcome, finalScore){
  const best = (st.bestScore>=65 && st.bestAnswer) ? st.bestAnswer : 'Nenhuma resposta atingiu um padrão satisfatório de atendimento.';
  const worst = st.worstAnswer || answer;
  const worstWhy = ev.flags.offensive ? 'Linguagem inadequada/ofensiva.' : ev.flags.forbiddenShort ? 'Resposta curta/inadequada que não acolheu, não explicou e não transmitiu segurança.' : ev.flags.badShort ? 'Resposta muito curta para a situação do cliente.' : 'Foi a resposta que mais reduziu a confiança do cliente.';
- const detailedErrors=(st.turnAnalyses||[]).map(t=>`<div class="caseCard"><b>Mensagem ${t.turn} • Nota ${t.score}%</b><p><b>Resposta:</b> ${t.answer}</p>${t.entries.length?`<ul>${t.entries.map(e=>`<li><b>${e.metric}:</b> ${v17Esc(v24SafeTechnicalText(e.reason))}</li>`).join('')}</ul>`:'<p>Nenhum erro crítico nessa mensagem.</p>'}<p><b>Como poderia responder:</b> ${t.alternative}</p></div>`).join('');
+ const detailedErrors=(st.turnAnalyses||[]).map(t=>`<div class="caseCard"><b>Mensagem ${t.turn} • Nota ${t.score}%</b><p><b>Resposta:</b> ${t.answer}</p>${t.entries.length?`<ul>${t.entries.map(e=>`<li><b>${e.metric}:</b> ${e.reason}</li>`).join('')}</ul>`:'<p>Nenhum erro crítico nessa mensagem.</p>'}<p><b>Como poderia responder:</b> ${t.alternative}</p></div>`).join('');
  const memoryItems=Object.entries(st.memory||{}).filter(([,v])=>v).map(([k,v])=>`<span>${k}: ${v}</span>`).join('');
  return `<h3>Supervisor IA • Nota ${finalScore}%</h3>
  <p><b>Resultado:</b> ${resultLabel}</p>
@@ -569,12 +569,9 @@ function v17SetStatus(st){
   notify('Status alterado',`Atendimento: ${labels[st]}.`);
 }
 function v17Pool(){
-  const diff=$('difficultyFilter')?.value||'todos';
   return activeCases().filter(c=>{
     const modes=normalizeModes(c.modes);
-    const okMode = modes.includes('conversa') || modes.includes('plantao');
-    const okDiff = diff==='todos' || normalizeDifficulty(c.difficulty)===diff;
-    return okMode && okDiff;
+    return modes.includes('conversa') || modes.includes('plantao');
   });
 }
 function v17StartLiveShift(){
@@ -971,7 +968,7 @@ function v18OpenConversation(resultId,index){
   const r=load(KEYS.results).find(x=>x.id===resultId); if(!r) return; const c=(r.cases||[])[index]; if(!c) return;
   const msgs=(c.conversation||[]).map(m=>`<div class="msg ${m.kind==='agent'?'agentMsg':'clientMsg'}"><small>${m.at?new Date(m.at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):''}</small><br>${v17Esc(m.text||'')}</div>`).join('')||'<p>Conversa completa não foi gravada nesta versão antiga.</p>';
   const analyses=(c.analyses||[]).map(a=>`<div class="caseCard"><b>Mensagem ${a.turn} • Nota ${a.score}%</b><p><b>Resposta:</b> ${v17Esc(a.answer||'')}</p>${(a.entries||[]).length?`<ul>${a.entries.map(e=>`<li><b>${v17Esc(e.metric)}:</b> ${v17Esc(e.reason)}</li>`).join('')}</ul>`:'<p>Sem erro crítico registrado.</p>'}<p><b>Alternativa:</b> ${v17Esc(a.alternative||'')}</p></div>`).join('');
-  const timeline=(c.events||[]).map(e=>`<li>${v17Esc(v24SafeTechnicalText(e))}</li>`).join('');
+  const timeline=(c.events||[]).map(e=>`<li>${v17Esc(e)}</li>`).join('');
   $('modalTitle').textContent=`Conversa • ${c.clientName||'Cliente'} • ${c.score}%`;
   $('modalBody').innerHTML=`<div class="auditSummary"><div><span>Caso</span><b>${v17Esc(c.title||'')}</b></div><div><span>Resultado</span><b>${v17Esc(c.outcome||'')}</b></div><div><span>Tempo</span><b>${c.time||0}s</b></div><div><span>Nota</span><b>${c.score}%</b></div></div><h3>Conversa completa</h3><div class="auditChat">${msgs}</div><h3>Linha do tempo</h3><ul class="timeline">${timeline||'<li>Sem eventos registrados.</li>'}</ul><h3>Análise das respostas</h3><div class="cardsList compact">${analyses||'<p>Sem análise detalhada nesta versão antiga.</p>'}</div><h3>Supervisor IA</h3><div class="supervisor">${c.supervisorHtml||'<p>Sem relatório salvo.</p>'}</div><div class="actions"><button class="secondary" id="backTraining">Voltar ao treinamento</button></div>`;
   $('backTraining').onclick=()=>v18OpenTraining(resultId);
@@ -1495,14 +1492,6 @@ console.log('ConCrédito Simulador - V20 IA Contextual Nível 2 carregada');
    ===================================================== */
 const V21 = { version:'v21_ia_nivel_3_gestor_unificado' };
 function v21Plain(s){ return String(s||'').trim(); }
-function v24SafeTechnicalText(value){
-  const raw=String(value||'').trim();
-  if(!raw) return '';
-  if(/quota|rate[- ]?limit|billing|generativelanguage\.googleapis\.com|gemini-2\.0-flash|resource_exhausted|please retry|api gemini não respondeu|you exceeded/i.test(raw)){
-    return 'IA principal temporariamente indisponível. O atendimento continuou pelo modo de contingência.';
-  }
-  return raw;
-}
 function v21ConversationHistory(conv){
   return (conv?.messages||[]).map(m=>({kind:m.kind, text:m.text, at:m.at}));
 }
@@ -1528,7 +1517,7 @@ function v21ClientePayload(conv, answer){
 }
 async function v21GeminiClientReply(conv, ev, answer){
   try{
-    const r=await fetch('/api/cliente',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v21ClientePayload(conv,answer))});
+    const r=await fetch('https://backend-do-simulador-con-cr-dito-jbf7.vercel.app/api/cliente',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v21ClientePayload(conv,answer))});
     if(!r.ok) throw new Error('API indisponível');
     const data=await r.json();
     if(!data || !data.message || data.ok===false) throw new Error(data?.analysis?.note||'Fallback');
@@ -1546,7 +1535,7 @@ async function v21GeminiClientReply(conv, ev, answer){
   }catch(err){
     const oldA=activeCase, oldR=realistic; activeCase=conv.case; realistic=conv.realistic;
     const rep=realisticClientReply(conv.case,ev,answer);
-    realistic?.events?.push?.('Modo de contingência local acionado automaticamente.');
+    realistic?.events?.push?.(`Fallback local V20 usado porque a API Gemini não respondeu: ${err.message}.`);
     activeCase=oldA; realistic=oldR;
     return rep;
   }
@@ -1832,12 +1821,13 @@ v21ClientePayload=function(conv,answer){
   payload.estado.interesse=st.interest;
   return payload;
 };
+const v23OldGeminiReply=v21GeminiClientReply;
 v21GeminiClientReply=async function(conv,ev,answer){
   try{
-    const r=await fetch('https://backend-do-simulador-con-cr-dito-jb.vercel.app/api/cliente',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v21ClientePayload(conv,answer))});
+    const r=await fetch('https://backend-do-simulador-con-cr-dito-jbf7.vercel.app/api/cliente',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v21ClientePayload(conv,answer))});
     if(!r.ok) throw new Error('API indisponível');
     const data=await r.json();
-    if(!data||!data.message) throw new Error('Resposta inválida da API');
+    if(!data||!data.message||data.ok===false) throw new Error(data?.analysis?.note||'Fallback');
     const st=conv.realistic||{};
     if(typeof data.trust==='number') st.trust=Math.max(0,Math.min(100,Math.round(data.trust)));
     if(typeof data.patience==='number') st.patience=Math.max(0,Math.min(100,Math.round(data.patience)));
@@ -1845,28 +1835,136 @@ v21GeminiClientReply=async function(conv,ev,answer){
     if(data.stage) st.stage=data.stage;
     st.memory={...(st.memory||{}),...(data.memory||{})};
     st.turnAnalyses=st.turnAnalyses||[];
-    const safeNote=v24SafeTechnicalText(data.analysis?.note)||'Resposta analisada no contexto completo.';
-    const safeReason=v24SafeTechnicalText(data.controller?.reason)||data.controller?.decision||'Decisão contextual.';
     st.turnAnalyses.push({
       turn:st.turns||0,score:data.analysis?.quality??ev.total,answer,
       entries:[
-        {metric:'Análise semântica',reason:safeNote},
-        {metric:'Decisão do controlador',reason:safeReason},
+        {metric:'Análise semântica',reason:data.analysis?.note||'Resposta analisada no contexto completo.'},
+        {metric:'Decisão do controlador',reason:data.controller?.decision||'não informada'},
         ...(data.analysis?.missing?.length?[{metric:'Pontos pendentes',reason:data.analysis.missing.join(', ')}]:[])
       ],
       alternative:'Responder ao objetivo do cliente com clareza, segurança e próximo passo concreto.'
     });
     st.events=st.events||[];
-    if(data.fallback) st.events.push('Modo de contingência local acionado automaticamente.');
-    else st.events.push(`V24 Controlador: ${data.controller?.decision||'contextual'} | ${data.analysis?.resolution||'parcial'} | qualidade ${data.analysis?.quality??ev.total}%.`);
+    st.events.push(`V23 Controlador: ${data.controller?.decision||'contextual'} | ${data.analysis?.resolution||'parcial'} | qualidade ${data.analysis?.quality??ev.total}%.`);
     return {text:String(data.message).trim(),end:!!data.end,outcome:data.outcome||'concluído'};
   }catch(err){
-    console.error('[simulador] Falha ao consultar /api/cliente:',err);
-    const oldA=activeCase, oldR=realistic; activeCase=conv.case; realistic=conv.realistic;
-    const rep=realisticClientReply(conv.case,ev,answer);
-    conv.realistic?.events?.push?.('Modo de contingência local acionado automaticamente.');
-    activeCase=oldA; realistic=oldR;
-    return rep;
+    conv.realistic?.events?.push?.(`Fallback local acionado: ${err.message}.`);
+    return v23OldGeminiReply(conv,ev,answer);
   }
 };
-console.log('ConCrédito Simulador - V24 IA resiliente carregada');
+console.log('ConCrédito Simulador - V23 IA Controlador + Cliente carregada');
+
+
+/* =====================================================
+   V31 — CSAT REALISTA + SUPERVISOR VIRTUAL AO FINAL
+   - Sem porcentagem ou avaliação técnica durante o plantão
+   - Pesquisa CSAT automática de 1 a 5 ao encerrar cada conversa
+   - Média CSAT da sessão e ranking pelo CSAT
+   - Feedback único da IA somente depois do fim do tempo
+   ===================================================== */
+const V31_API='https://backend-do-simulador-con-cr-dito-jbf7.vercel.app';
+const V31_LABELS={1:'Péssimo',2:'Ruim',3:'Regular',4:'Bom',5:'Excelente'};
+function v31Esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function v31CsatAverage(cases=[]){const vals=cases.map(c=>Number(c.csat)).filter(n=>n>=1&&n<=5);return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;}
+function v31CsatText(avg){return avg?`${avg.toFixed(2)} / 5`:'—';}
+function v31Transcript(conv){return (conv?.messages||[]).filter(m=>m.kind!=='system').map(m=>({kind:m.kind,text:m.text,at:m.at}));}
+async function v31Request(path,payload){const r=await fetch(`${V31_API}${path}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json();}
+function v31FallbackCsat(outcome,score){const o=String(outcome||'').toLowerCase();if(/desistiu|demora|paciência|paciencia/.test(o))return 1;if(score>=88)return 5;if(score>=72)return 4;if(score>=50)return 3;if(score>=30)return 2;return 1;}
+function v31AddSystem(conv,text){
+  conv.messages.push({kind:'system',text,at:Date.now()});
+  if(V17?.activeId===conv.id && $('chatBox')){$('chatBox').insertAdjacentHTML('beforeend',`<div class="msg systemMsg"><small>${v17Now()}</small><br>${v31Esc(text)}</div>`);$('chatBox').scrollTop=$('chatBox').scrollHeight;}
+  v17RenderQueue?.();
+}
+const v31OldSelect=v17SelectConversation;
+v17SelectConversation=function(id){
+  v31OldSelect(id);
+  const conv=V17.conversations.find(c=>c.id===id);if(!conv)return;
+  $('chatBox').innerHTML=conv.messages.map(m=>`<div class="msg ${m.kind==='system'?'systemMsg':m.kind==='agent'?'agentMsg':'clientMsg'}"><small>${new Date(m.at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</small><br>${v31Esc(m.text)}</div>`).join('');
+  if(conv.awaitingClose){$('supervisorBox').innerHTML=conv.csat?`<div class="csatReceipt"><span>Avaliação registrada pelo cliente</span><strong>${conv.csat} — ${V31_LABELS[conv.csat]}</strong><small>O feedback técnico será exibido ao final da sessão.</small></div>`:'<div class="csatReceipt"><span>Pesquisa de satisfação enviada</span><strong>Aguardando avaliação...</strong></div>';$('supervisorBox').classList.remove('hidden');}
+};
+async function v31EvaluateConversation(conv,outcome,score){
+  try{return await v31Request('/api/csat',{caseData:conv.case,conversation:v31Transcript(conv),outcome,timeSeconds:Math.round((Date.now()-(conv.createdAt||Date.now()))/1000)});}
+  catch(e){const rating=v31FallbackCsat(outcome,score);return {rating,label:V31_LABELS[rating],reason:'Contingência local',fallback:true};}
+}
+function v31SaveLiveCase(conv,score,outcome){
+  if(!currentSession||conv.savedToSession)return;
+  conv.savedToSession=true;
+  currentSession.cases.push({...v21CasePayloadFromConversation(conv,score,outcome),csat:conv.csat,csatLabel:V31_LABELS[conv.csat],csatReason:conv.csatReason||''});
+}
+v17CompleteConversation=async function(conv,ev,answer,outcome='concluído'){
+  if(conv.awaitingClose)return;
+  conv.awaitingClose=true;conv.outcome=outcome;conv.status='awaiting_close';clearTimeout(conv.nagTimer);clearTimeout(conv.replyTimer);
+  const bonus=outcome==='aceitou'?15:outcome==='concluído'||outcome==='concluiu'?5:outcome==='desistiu'||outcome==='perdeu paciência'?-20:0;
+  const score=Math.max(0,Math.min(100,(ev?.total||60)+bonus));conv.score=score;
+  currentSession.solved++;currentSession.xp+=score;
+  v31AddSystem(conv,'Como você avalia o atendimento recebido pelo nosso atendente? Responda de 1 a 5, sendo 1 Péssimo e 5 Excelente.');
+  conv.csatPromise=v31EvaluateConversation(conv,outcome,score).then(data=>{
+    conv.csat=Math.max(1,Math.min(5,Math.round(Number(data.rating)||3)));conv.csatReason=data.reason||'';
+    currentSession.csatRatings=currentSession.csatRatings||[];currentSession.csatRatings.push(conv.csat);
+    v31AddSystem(conv,`Cliente avaliou o atendimento como ${V31_LABELS[conv.csat]} (${conv.csat}).`);
+    v31SaveLiveCase(conv,score,outcome);updateHud();if(V17.activeId===conv.id)v17SelectConversation(conv.id);return conv.csat;
+  });
+  conv.supervisorHtml='<div class="csatReceipt"><span>Pesquisa de satisfação enviada</span><strong>Aguardando avaliação...</strong><small>O feedback técnico ficará disponível no final da sessão.</small></div>';
+  if(V17.activeId===conv.id)v17SelectConversation(conv.id);updateHud();playSound('finish');
+};
+v17CustomerAbandons=async function(conv){
+  if(conv.closed||conv.awaitingClose)return;v17AddMessage(conv,'client','Como não tive retorno, vou encerrar por aqui.');
+  return v17CompleteConversation(conv,{total:20},'', 'desistiu por demora');
+};
+const v31OldComplete=completeCase;
+completeCase=async function(ev,answer,outcome='concluído'){
+  if(selectedMode==='conversa'&&V17.live)return;
+  if(activeCase&&activeCase._completed)return;if(activeCase)activeCase._completed=true;
+  const score=Math.max(0,Math.min(100,ev?.total||60));currentSession.solved++;currentSession.xp+=score;
+  const msgs=[...document.querySelectorAll('#chatBox .msg')].map(el=>({kind:el.classList.contains('agentMsg')?'agent':'client',text:el.textContent.replace(/^\d{2}:\d{2}/,'').trim(),at:Date.now()}));
+  const pseudo={case:activeCase,messages:msgs,createdAt:currentSession.start};const cs=await v31EvaluateConversation(pseudo,outcome,score);const rating=Math.max(1,Math.min(5,Math.round(Number(cs.rating)||3)));
+  currentSession.csatRatings=currentSession.csatRatings||[];currentSession.csatRatings.push(rating);
+  currentSession.cases.push({caseId:activeCase.id,title:activeCase.title,score,answer,time:Math.round((Date.now()-currentSession.start)/1000),outcome,conversation:msgs,caseData:{...activeCase},csat:rating,csatLabel:V31_LABELS[rating],csatReason:cs.reason||''});
+  $('supervisorBox').innerHTML=`<div class="csatReceipt"><span>Como você avalia o atendimento recebido pelo nosso atendente?</span><strong>${rating} — ${V31_LABELS[rating]}</strong><small>O feedback técnico será exibido ao final da sessão.</small></div>`;$('supervisorBox').classList.remove('hidden');updateHud();playSound('finish');
+};
+updateHud=function(){if(!currentSession)return;const avg=v31CsatAverage(currentSession.cases);$('xpLabel').textContent=currentSession.xp;$('avgLabel').textContent=v31CsatText(avg);$('solvedLabel').textContent=currentSession.solved;};
+const v31OldRefreshHome=refreshHome;
+refreshHome=function(){v31OldRefreshHome();const results=load(KEYS.results);const vals=results.map(r=>Number(r.csatAverage)).filter(n=>n>0);$('homeAvg').textContent=vals.length?v31CsatText(vals.reduce((a,b)=>a+b,0)/vals.length):'—';};
+function v31RenderReport(result){
+  const cases=result.cases||[],avg=result.csatAverage||0,dist={1:0,2:0,3:0,4:0,5:0};cases.forEach(c=>{if(c.csat)dist[c.csat]++});
+  $('reportCsatAverage').textContent=avg?avg.toFixed(2):'—';
+  $('reportStats').innerHTML=`<div class="reportStat"><span>Tempo</span><b>${Math.max(1,Math.round((new Date(result.at)-new Date(result.startedAt||result.at))/60000))} min</b></div><div class="reportStat"><span>Atendimentos</span><b>${cases.length}</b></div><div class="reportStat"><span>Avaliações recebidas</span><b>${cases.filter(c=>c.csat).length}</b></div><div class="reportStat"><span>Modo</span><b>${v31Esc(result.mode)}</b></div>`;
+  $('reportDistribution').innerHTML=[5,4,3,2,1].map(n=>`<div class="csatBucket"><b>${n} — ${V31_LABELS[n]}</b><small>${dist[n]} avaliação(ões)</small></div>`).join('');
+  $('reportSupervisorText').textContent=result.supervisorFeedback||'A análise não ficou disponível nesta sessão.';
+  $('reportCasesCount').textContent=`${cases.length} atendimento(s)`;
+  $('reportCasesList').innerHTML=cases.map((c,i)=>{const chat=(c.conversation||[]).filter(m=>m.kind!=='system').map(m=>`<div class="line ${m.kind==='agent'?'agent':'client'}"><b>${m.kind==='agent'?'Atendente':'Cliente'}:</b> ${v31Esc(m.text)}</div>`).join('');return `<details class="reportCase"><summary><span>${i+1}. ${v31Esc(c.title||'Atendimento')}</span><span>${c.csat||'—'} — ${V31_LABELS[c.csat]||'Sem avaliação'}</span></summary><div class="reportCaseBody"><p class="csatLabel"><b>Desfecho:</b> ${v31Esc(c.outcome||'-')}</p><div class="reportChat">${chat||'<p>Conversa não registrada.</p>'}</div></div></details>`}).join('')||'<p>Nenhum atendimento foi concluído.</p>';
+  show('sessionReportScreen');
+}
+finishSession=async function(){
+  if(!currentSession)return;const name=($('sellerName').value||'').trim();if(!name){v19ShowValidation?.('Informe seu nome antes de finalizar.');return;}
+  clearIdleTimers();clearInterval(timer);if(V17?.live)v17StopLiveShift();
+  if(selectedMode==='conversa'&&V17?.conversations){for(const conv of V17.conversations){clearTimeout(conv.nagTimer);clearTimeout(conv.replyTimer);if(conv.csatPromise)await conv.csatPromise.catch(()=>{});if(!conv.savedToSession){const score=conv.score||(conv.answerLog?.length?55:20);conv.outcome=conv.outcome||'sessão finalizada';if(!conv.csat){const cs=await v31EvaluateConversation(conv,conv.outcome,score);conv.csat=Math.max(1,Math.min(5,Math.round(Number(cs.rating)||3)));}v31SaveLiveCase(conv,score,conv.outcome);}}}
+  const avg=v31CsatAverage(currentSession.cases);let supervisorFeedback='';
+  try{const sup=await v31Request('/api/supervisor-sessao',{name,mode:$('modeBadge').textContent,csatAverage:Number(avg.toFixed(2)),cases:currentSession.cases});supervisorFeedback=sup.feedback||'';}catch(e){supervisorFeedback='Analise seus atendimentos observando se cada cliente recebeu uma orientação segura e um próximo passo claro. Mantenha a cordialidade e a objetividade, mas confirme a resolução da dúvida antes de encerrar a conversa.';}
+  const result={id:currentSession.id,name,team:$('sellerTeam').value,mode:$('modeBadge').textContent,average:Math.round(avg*20),csatAverage:Number(avg.toFixed(2)),csatCount:currentSession.cases.filter(c=>c.csat).length,xp:currentSession.xp,solved:currentSession.solved,cases:currentSession.cases,supervisorFeedback,startedAt:currentSession.start,at:new Date().toISOString()};
+  const results=load(KEYS.results);results.unshift(result);save(KEYS.results,results);notify('Treinamento finalizado',`${name} encerrou a sessão com CSAT ${v31CsatText(avg)}.`);currentSession=null;refreshAll();v31RenderReport(result);
+};
+const v31OldRefreshManager=refreshManager;
+refreshManager=function(){v31OldRefreshManager();const results=load(KEYS.results),allCases=results.flatMap(r=>r.cases||[]),ratings=allCases.map(c=>Number(c.csat)).filter(n=>n>0),avg=ratings.length?ratings.reduce((a,b)=>a+b,0)/ratings.length:0;
+  if($('managerCards'))$('managerCards').innerHTML=`<div><span>Treinamentos</span><b>${results.length}</b></div><div><span>Média CSAT</span><b>${v31CsatText(avg)}</b></div><div><span>Avaliações</span><b>${ratings.length}</b></div><div><span>Atendimentos</span><b>${allCases.length}</b></div>`;
+  const by={};results.forEach(r=>(r.cases||[]).forEach(c=>{if(!c.csat)return;by[r.name]??={sum:0,count:0,trainings:new Set()};by[r.name].sum+=Number(c.csat);by[r.name].count++;by[r.name].trainings.add(r.id)}));
+  if($('rankingList'))$('rankingList').innerHTML=Object.entries(by).sort((a,b)=>(b[1].sum/b[1].count)-(a[1].sum/a[1].count)||b[1].count-a[1].count).map(([n,v],i)=>`<div class="caseCard sellerCard" data-name="${v31Esc(n)}"><b>${i+1}º ${v31Esc(n)}</b><small>CSAT ${(v.sum/v.count).toFixed(2)} / 5 • ${v.count} avaliação(ões) • ${v.trainings.size} treino(s)</small><div class="actions"><button class="primary small openSellerHistory" data-name="${v31Esc(n)}">Ver histórico</button><button class="secondary small clearSellerHistory" data-name="${v31Esc(n)}">Excluir histórico</button></div></div>`).join('')||'<p>Sem avaliações CSAT.</p>';
+  if($('resultsList'))$('resultsList').innerHTML=results.slice(0,8).map(r=>`<div class="caseCard"><b>${v31Esc(r.name)}</b><small>${v31Esc(r.mode)} • CSAT ${r.csatAverage?Number(r.csatAverage).toFixed(2):'—'} / 5 • ${new Date(r.at).toLocaleString('pt-BR')}</small><p>${r.solved||0} atendimento(s)</p><div class="actions"><button class="secondary small openTraining" data-id="${r.id}">Abrir</button></div></div>`).join('')||'<p>Sem treinos.</p>';
+  $$('.openSellerHistory').forEach(b=>b.onclick=e=>{e.stopPropagation();v18OpenSeller(b.dataset.name)});$$('.clearSellerHistory').forEach(b=>b.onclick=e=>{e.stopPropagation();const name=b.dataset.name;if(!confirm(`Excluir todo o histórico de ${name}?`))return;save(KEYS.results,load(KEYS.results).filter(r=>r.name!==name));refreshAll()});$$('#resultsList .openTraining').forEach(b=>b.onclick=()=>v18OpenTraining(b.dataset.id));
+};
+if($('reportHomeBtn'))$('reportHomeBtn').onclick=()=>{resetGameView();show('homeScreen');refreshAll();};
+if($('finishBtn'))$('finishBtn').onclick=finishSession;
+console.log('ConCrédito Simulador - V31 CSAT + Supervisor Virtual carregada');
+
+
+/* V33 — encerramento inteligente, todos os casos para todos os níveis e relatório final sem alert */
+(function(){
+  const roleSelect=document.getElementById('difficultyFilter');
+  if(roleSelect){
+    roleSelect.setAttribute('aria-label','Nível do atendente');
+    if(roleSelect.value==='todos') roleSelect.value='Pleno';
+  }
+  // O nível controla somente volume, frequência e paciência; nunca filtra os casos.
+  window.addEventListener('beforeunload',()=>{});
+})();
+console.log('ConCrédito Simulador - V33 encerramento inteligente + cargos por volume carregada');
