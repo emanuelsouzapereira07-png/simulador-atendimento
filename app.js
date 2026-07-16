@@ -597,7 +597,10 @@ function v17MaybeSpawn(){
 }
 function v17AddCustomer(){
   const pool=v17Pool(); if(!pool.length) return;
-  const base={...pool[Math.floor(Math.random()*pool.length)]};
+  const activeIds=new Set(V17.conversations.filter(c=>!c.closed).map(c=>c.case.id));
+  const available=pool.filter(c=>!activeIds.has(c.id));
+  const source=(available.length?available:pool)[Math.floor(Math.random()*(available.length?available.length:pool.length))];
+  const base={...source};
   const conv={
     id:uid('chat'), case:base, realistic:createRealisticState(base), messages:[], status:'awaiting_agent', unread:1,
     createdAt:Date.now(), lastClientAt:Date.now(), lastAgentAt:null, closed:false, awaitingClose:false,
@@ -1983,3 +1986,107 @@ console.log('ConCrédito Simulador - V31 CSAT + Supervisor Virtual carregada');
 })();
 console.log('ConCrédito Simulador - V33 encerramento inteligente + cargos por volume carregada');
 console.log('ConCrédito Simulador - V34 rotas compactas CSAT/Supervisor corrigidas carregada');
+
+
+/* =====================================================
+   V35 — APRESENTAÇÃO MULTITURMAS
+   Supervisor estruturado, relatório específico, replay inteligente,
+   clientes variados e experiência focada em demonstrações presenciais.
+   ===================================================== */
+function v35Stars(value){
+  const n=Math.max(0,Math.min(5,Math.round(Number(value)||0)));
+  return `<span class="v35Stars" aria-label="${n} de 5">${'★'.repeat(n)}${'☆'.repeat(5-n)}</span>`;
+}
+function v35SafeList(items=[]){return (Array.isArray(items)?items:[]).filter(Boolean).slice(0,4);}
+function v35LocalSupervisor(cases=[],avg=0,name='Colaborador'){
+  const rated=cases.filter(c=>c.csat);
+  const low=[...rated].sort((a,b)=>(a.csat||9)-(b.csat||9))[0];
+  const high=[...rated].sort((a,b)=>(b.csat||0)-(a.csat||0))[0];
+  const lowCount=rated.filter(c=>c.csat<=2).length;
+  const highCount=rated.filter(c=>c.csat>=4).length;
+  return {
+    summary:`${name} realizou ${cases.length} atendimento(s) e recebeu ${rated.length} avaliação(ões), com média CSAT de ${avg?avg.toFixed(2):'—'} de 5. ${highCount?`${highCount} cliente(s) avaliaram a experiência como Boa ou Excelente.`:''} ${lowCount?`${lowCount} cliente(s) demonstraram insatisfação, o que merece revisão.`:''}`.trim(),
+    strengths:high?[`O atendimento “${high.title||'sem título'}” teve uma das melhores percepções dos clientes e mostra um padrão que deve ser mantido.`]:['Você manteve os atendimentos ativos durante a sessão.'],
+    improvements:low?[`Revise o atendimento “${low.title||'sem título'}”, pois ele recebeu CSAT ${low.csat}/5.`,`Garanta que a resposta esclareça a causa da dúvida e termine com um próximo passo concreto.`]:['Confirme se a dúvida foi resolvida antes de encerrar cada conversa.'],
+    criticalCase:low?{caseIndex:cases.indexOf(low)+1,title:low.title||'Atendimento',reason:low.csatReason||'Foi o atendimento com menor percepção de satisfação.',recommendedResponse:low.caseData?.ideal||'Acolha a dúvida, explique a situação com segurança e indique o próximo passo.'}:null,
+    conclusion:'Mantenha a cordialidade e a agilidade, mas priorize respostas completas e diretamente ligadas ao motivo do contato.',
+    caseReviews:[]
+  };
+}
+function v35SupervisorObserver(){
+  const hud=document.querySelector('.hud');
+  if(hud&&!document.getElementById('v35Observer')){
+    hud.insertAdjacentHTML('beforeend','<div class="v35Observer" id="v35Observer"><span class="v35Pulse"></span><div><b>Supervisor Virtual</b><small>Observando a sessão em tempo real</small></div></div>');
+  }
+}
+const v35OldStartSession=startSession;
+startSession=function(){v35OldStartSession();v35SupervisorObserver();};
+if($('startBtn'))$('startBtn').onclick=startSession;
+
+function v35RenderStructuredSupervisor(report,result){
+  const summary=v31Esc(report.summary||report.feedback||result.supervisorFeedback||'Análise indisponível.').replace(/\n/g,'<br>');
+  const strengths=v35SafeList(report.strengths);
+  const improvements=v35SafeList(report.improvements);
+  const critical=report.criticalCase;
+  const conclusion=v31Esc(report.conclusion||'');
+  return `<div class="v35SupervisorHead"><div><span class="badge">Supervisor Virtual</span><h2>Relatório da sessão</h2></div><small>Análise gerada a partir de todas as conversas</small></div>
+    <div class="v35Summary">${summary}</div>
+    <div class="v35Columns">
+      <section><h3>O que deve manter</h3>${strengths.length?`<ul class="v35Good">${strengths.map(x=>`<li>${v31Esc(x)}</li>`).join('')}</ul>`:'<p>Nenhum padrão positivo pôde ser identificado com segurança.</p>'}</section>
+      <section><h3>Prioridades de melhoria</h3>${improvements.length?`<ul class="v35Improve">${improvements.map(x=>`<li>${v31Esc(x)}</li>`).join('')}</ul>`:'<p>Nenhuma melhoria crítica foi identificada.</p>'}</section>
+    </div>
+    ${critical?`<div class="v35Critical"><span class="badge">Atendimento para revisar</span><h3>${v31Esc(critical.title||'Atendimento')}</h3><p>${v31Esc(critical.reason||'')}</p>${critical.recommendedResponse?`<div class="v35Recommended"><b>Resposta recomendada</b><p>${v31Esc(critical.recommendedResponse)}</p></div>`:''}</div>`:''}
+    ${conclusion?`<div class="v35Conclusion"><h3>Conclusão do supervisor</h3><p>${conclusion}</p></div>`:''}`;
+}
+function v35CaseReviewFor(report,index){
+  return (report?.caseReviews||[]).find(r=>Number(r.caseIndex)===index+1)||null;
+}
+v31RenderReport=function(result){
+  const cases=result.cases||[],avg=Number(result.csatAverage)||0,dist={1:0,2:0,3:0,4:0,5:0};
+  cases.forEach(c=>{if(c.csat)dist[c.csat]++});
+  $('reportCsatAverage').innerHTML=avg?`${avg.toFixed(2)}<small class="v35OutOf"> / 5</small><div>${v35Stars(avg)}</div>`:'—';
+  const duration=Math.max(1,Math.round((new Date(result.at)-new Date(result.startedAt||result.at))/60000));
+  $('reportStats').innerHTML=`<div class="reportStat"><span>Tempo</span><b>${duration} min</b></div><div class="reportStat"><span>Atendimentos</span><b>${cases.length}</b></div><div class="reportStat"><span>Avaliações recebidas</span><b>${cases.filter(c=>c.csat).length}</b></div><div class="reportStat"><span>Modo</span><b>${v31Esc(result.mode)}</b></div>`;
+  $('reportDistribution').innerHTML=[5,4,3,2,1].map(n=>`<div class="csatBucket"><div>${v35Stars(n)}</div><b>${n} — ${V31_LABELS[n]}</b><small>${dist[n]} avaliação(ões)</small></div>`).join('');
+  $('reportSupervisorText').innerHTML=v35RenderStructuredSupervisor(result.supervisorReport||{},result);
+  $('reportCasesCount').textContent=`${cases.length} atendimento(s)`;
+  $('reportCasesList').innerHTML=cases.map((c,i)=>{
+    const chat=(c.conversation||[]).filter(m=>m.kind!=='system').map(m=>`<div class="line ${m.kind==='agent'?'agent':'client'}"><b>${m.kind==='agent'?'Atendente':'Cliente'}:</b> ${v31Esc(m.text)}</div>`).join('');
+    const review=v35CaseReviewFor(result.supervisorReport,i);
+    const comment=review?.comment||c.csatReason||'';
+    const recommendation=review?.recommendedResponse||'';
+    return `<details class="reportCase"><summary><span>${i+1}. ${v31Esc(c.title||'Atendimento')}</span><span>${v35Stars(c.csat)} ${c.csat||'—'} — ${V31_LABELS[c.csat]||'Sem avaliação'}</span></summary><div class="reportCaseBody"><p class="csatLabel"><b>Desfecho:</b> ${v31Esc(c.outcome||'-')}</p><div class="reportChat">${chat||'<p>Conversa não registrada.</p>'}</div>${comment?`<div class="v35Review"><b>Comentário do supervisor</b><p>${v31Esc(comment)}</p>${recommendation?`<div class="v35Recommended"><b>Resposta recomendada</b><p>${v31Esc(recommendation)}</p></div>`:''}</div>`:''}</div></details>`;
+  }).join('')||'<p>Nenhum atendimento foi concluído.</p>';
+  show('sessionReportScreen');
+};
+
+finishSession=async function(){
+  if(!currentSession)return;
+  const name=($('sellerName').value||'').trim();
+  if(!name){v19ShowValidation?.('Informe seu nome antes de finalizar.');return;}
+  clearIdleTimers();clearInterval(timer);if(V17?.live)v17StopLiveShift();
+  if(selectedMode==='conversa'&&V17?.conversations){
+    for(const conv of V17.conversations){
+      clearTimeout(conv.nagTimer);clearTimeout(conv.replyTimer);
+      if(conv.csatPromise)await conv.csatPromise.catch(()=>{});
+      if(!conv.savedToSession){
+        const score=conv.score||(conv.answerLog?.length?55:20);
+        conv.outcome=conv.outcome||'sessão finalizada';
+        if(!conv.csat){const cs=await v31EvaluateConversation(conv,conv.outcome,score);conv.csat=Math.max(1,Math.min(5,Math.round(Number(cs.rating)||3)));conv.csatReason=cs.reason||'';}
+        v31SaveLiveCase(conv,score,conv.outcome);
+      }
+    }
+  }
+  const avg=v31CsatAverage(currentSession.cases);
+  let supervisorReport;
+  try{
+    supervisorReport=await v31Request('/api/cliente?action=supervisor-sessao',{name,mode:$('modeBadge').textContent,csatAverage:Number(avg.toFixed(2)),cases:currentSession.cases});
+  }catch(e){supervisorReport=v35LocalSupervisor(currentSession.cases,avg,name);}
+  if(!supervisorReport?.summary&&!supervisorReport?.feedback)supervisorReport=v35LocalSupervisor(currentSession.cases,avg,name);
+  const result={id:currentSession.id,name,team:$('sellerTeam').value,mode:$('modeBadge').textContent,average:Math.round(avg*20),csatAverage:Number(avg.toFixed(2)),csatCount:currentSession.cases.filter(c=>c.csat).length,xp:currentSession.xp,solved:currentSession.solved,cases:currentSession.cases,supervisorFeedback:supervisorReport.feedback||supervisorReport.summary||'',supervisorReport,startedAt:currentSession.start,at:new Date().toISOString()};
+  const results=load(KEYS.results);results.unshift(result);save(KEYS.results,results);
+  notify('Treinamento finalizado',`${name} encerrou a sessão com CSAT ${v31CsatText(avg)}.`);
+  currentSession=null;refreshAll();v31RenderReport(result);
+};
+if($('finishBtn'))$('finishBtn').onclick=finishSession;
+console.log('ConCrédito Simulador - V35 apresentação multiturmas carregada');
